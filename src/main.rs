@@ -82,16 +82,8 @@ fn App() -> Element {
                                                  .text1(&body);
 
                                              if mode == NotificationMode::NotificationPersistent {
-                                                  toast = toast.scenario(Scenario::Reminder);
-                                                  // tauri-winrt-notification v0.1+ uses .payload() or specific builder methods.
-                                                  // Assuming no direct .action() method exists on this version based on error.
-                                                  // Let's try to just use Scenario::Alarm which should persist IF the AppId is valid.
-                                                  // If PowerShell is used, it might not respect Alarm without buttons.
-                                                  // But since we can't easily add buttons with the current crate version without docs:
-                                                  // Let's try adding a custom XML payload if supported, or revert to simple Alarm.
-                                                  // Checking previous search results, 'Alarm' scenario is the key.
-                                                  // Let's try adding text2 as a "fake" action prompt.
-                                                  toast = toast.text2("Click to focus");
+                                                  toast = toast.scenario(Scenario::Alarm);
+                                                  toast = toast.add_button("Focus", "Focus");
                                              } else {
                                                   toast = toast.duration(ToastDuration::Short);
                                              }
