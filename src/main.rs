@@ -105,6 +105,7 @@ fn App() -> Element {
             loop {
                 tokio::select! {
                     _ = rx.recv() => {
+                        window.set_visible(true);
                         window.set_focus();
                     }
                     _ = tokio::time::sleep(Duration::from_secs(1)) => {
