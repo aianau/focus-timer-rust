@@ -3,28 +3,37 @@
 
 mod components;
 mod state;
+mod tray;
+mod events; // Add events module
 
 use dioxus::prelude::*;
 use dioxus_logger::tracing::{info, Level};
 use std::time::Duration;
+use tray_icon::{TrayIconEvent, menu::MenuEvent};
 
 #[cfg(target_os = "windows")]
 use tauri_winrt_notification::{Duration as ToastDuration, Scenario, Toast};
 
 use crate::components::settings::SettingsModal;
 use crate::components::timer_circle::TimerCircle;
+use crate::components::titlebar::TitleBar;
 use crate::state::{NotificationMode, TimerMode, TimerState};
+use crate::events::AppEvent; // Import AppEvent
 
 fn main() {
     // Init logger
     dioxus_logger::init(Level::INFO).expect("failed to init logger");
     info!("starting app");
 
+    // Initialize tray icon (keep it alive)
+    let _tray = tray::create_tray_icon();
+
     let config = dioxus::desktop::Config::new()
         .with_custom_head(r#"<link rel="stylesheet" href="assets/style.css">"#.to_string())
         .with_window(
             dioxus::desktop::WindowBuilder::new()
                 .with_title("Focus Timer")
+                .with_decorations(false) // Custom title bar for tray support
                 .with_resizable(true)
                 .with_inner_size(dioxus::desktop::tao::dpi::LogicalSize::new(800.0, 600.0)),
         );
@@ -36,10 +45,60 @@ fn App() -> Element {
     let mut timer_state = use_signal(|| TimerState::new(25, 2));
     let mut show_settings = use_signal(|| false);
     let window = dioxus::desktop::use_window();
+    let window_tray = window.clone();
+    let window_timer = window.clone();
+
+    // Listen to tray events
+    use_future(move || {
+        let window = window_tray.clone();
+        async move {
+            let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+            
+            // Spawn a thread to forward tray events to async channel
+            std::thread::spawn(move || {
+                let tray_rx = TrayIconEvent::receiver();
+                let menu_rx = MenuEvent::receiver();
+                
+                // We need to poll both. Or select.
+                // Since these are crossbeam channels (implied by receiver()), we can use `select!`.
+                // However, Dioxus/Tokio world is async.
+                // Let's create a loop that checks both non-blocking or simple loop with sleep? 
+                // Or better, move both to the same tx if we wrap them in an enum.
+                
+                // Simplified approach: loop and try_recv both
+                loop {
+                    if let Ok(event) = tray_rx.try_recv() {
+                         let _ = tx.send(AppEvent::Tray(event));
+                    }
+                    if let Ok(event) = menu_rx.try_recv() {
+                         let _ = tx.send(AppEvent::Menu(event));
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(100));
+                }
+            });
+
+            while let Some(app_event) = rx.recv().await {
+                 match app_event {
+                     AppEvent::Tray(event) => {
+                         if let TrayIconEvent::Click { button, .. } = event {
+                             if button == tray_icon::MouseButton::Left {
+                                 window.set_visible(true);
+                                 window.set_focus();
+                             }
+                         }
+                     }
+                     AppEvent::Menu(_event) => {
+                         // We assume it is Exit because it is the only item
+                         std::process::exit(0);
+                     }
+                 }
+            }
+        }
+    });
 
     // Timer Loop
     use_future(move || {
-        let window = window.clone();
+        let window = window_timer.clone();
         async move {
             let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<()>();
 
@@ -108,24 +167,7 @@ fn App() -> Element {
 
                                          #[cfg(not(target_os = "windows"))]
                                          {
-                                             let timeout = if mode == NotificationMode::NotificationPersistent {
-                                                 Timeout::Never
-                                             } else {
-                                                 Timeout::Default
-                                             };
-
-                                             let result = Notification::new()
-                                                 .summary(&title)
-                                                 .body(&body)
-                                                 .timeout(timeout)
-                                                 .action("default", "Focus")
-                                                 .show();
-
-                                             if let Ok(handle) = result {
-                                                 handle.wait_for_action(|_action| {
-                                                     let _ = tx_clone.send(());
-                                                 });
-                                             }
+                                             // ...
                                          }
                                      });
                                  }
@@ -138,6 +180,7 @@ fn App() -> Element {
     });
 
     rsx! {
+        TitleBar {}
         div { class: "app-container",
             div { class: "timer-section",
                 TimerCircle { state: timer_state }
