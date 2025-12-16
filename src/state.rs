@@ -75,12 +75,6 @@ impl TimerState {
         }
     }
 
-    pub fn switch_mode(&mut self, mode: TimerMode) {
-        self.mode = mode;
-        self.is_running = false;
-        self.reset_current_mode();
-    }
-
     pub fn reset_current_mode(&mut self) {
         self.current_time = match self.mode {
             TimerMode::Work => self.work_duration,

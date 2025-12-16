@@ -5,7 +5,6 @@ mod state;
 
 use dioxus::prelude::*;
 use dioxus_logger::tracing::{info, Level};
-use notify_rust::{Notification, Timeout};
 use std::time::Duration;
 
 #[cfg(target_os = "windows")]
