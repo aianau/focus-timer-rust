@@ -83,7 +83,7 @@ fn App() -> Element {
 
                                              if mode == NotificationMode::NotificationPersistent {
                                                   toast = toast.scenario(Scenario::Alarm);
-                                                  toast = toast.add_button("Focus", "Focus");
+                                                  toast = toast.add_button("Ok", "Ok");
                                              } else {
                                                   toast = toast.duration(ToastDuration::Short);
                                              }
