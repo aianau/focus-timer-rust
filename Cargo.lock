@@ -1262,6 +1262,8 @@ dependencies = [
  "dioxus",
  "dioxus-logger",
  "notify-rust",
+ "serde",
+ "serde_json",
  "tauri-winrt-notification",
  "tokio",
  "tracing",

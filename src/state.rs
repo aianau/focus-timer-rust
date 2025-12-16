@@ -1,13 +1,16 @@
 use std::fmt;
 use std::time::Duration;
+use serde::{Serialize, Deserialize};
+use std::fs;
+use std::path::PathBuf;
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub enum TimerMode {
     Work,
     Pause,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub enum NotificationMode {
     Popup,
     Notification,
@@ -34,19 +37,66 @@ pub struct TimerState {
     pub notification_mode: NotificationMode,
 }
 
+#[derive(Serialize, Deserialize, Default)]
+struct AppConfig {
+    work_minutes: u64,
+    pause_minutes: u64,
+    notification_mode: Option<NotificationMode>,
+}
+
+impl AppConfig {
+    fn get_config_path() -> PathBuf {
+        // Use a local file for simplicity, or user data dir
+        PathBuf::from("focus_timer_config.json")
+    }
+
+    fn load() -> Option<Self> {
+        let path = Self::get_config_path();
+        if path.exists() {
+            if let Ok(content) = fs::read_to_string(path) {
+                return serde_json::from_str(&content).ok();
+            }
+        }
+        None
+    }
+
+    fn save(&self) {
+        let path = Self::get_config_path();
+        if let Ok(content) = serde_json::to_string_pretty(self) {
+            let _ = fs::write(path, content);
+        }
+    }
+}
+
 impl TimerState {
-    pub fn new(work_minutes: u64, pause_minutes: u64) -> Self {
+    pub fn new(default_work_minutes: u64, default_pause_minutes: u64) -> Self {
+        // Try to load config, otherwise use defaults
+        let (work_minutes, pause_minutes, notif_mode) = if let Some(config) = AppConfig::load() {
+            (config.work_minutes, config.pause_minutes, config.notification_mode.unwrap_or(NotificationMode::NotificationPersistent))
+        } else {
+            (default_work_minutes, default_pause_minutes, NotificationMode::NotificationPersistent)
+        };
+
         let work_duration = Duration::from_secs(work_minutes * 60);
         let pause_duration = Duration::from_secs(pause_minutes * 60);
-
+        
         Self {
             current_time: work_duration,
             work_duration,
             pause_duration,
             is_running: false,
             mode: TimerMode::Work,
-            notification_mode: NotificationMode::NotificationPersistent,
+            notification_mode: notif_mode,
         }
+    }
+
+    fn save_config(&self) {
+        let config = AppConfig {
+            work_minutes: self.work_duration.as_secs() / 60,
+            pause_minutes: self.pause_duration.as_secs() / 60,
+            notification_mode: Some(self.notification_mode),
+        };
+        config.save();
     }
 
     /// Ticks the timer. Returns true if the timer just finished.
@@ -75,6 +125,12 @@ impl TimerState {
         }
     }
 
+    pub fn switch_mode(&mut self, mode: TimerMode) {
+        self.mode = mode;
+        self.is_running = false;
+        self.reset_current_mode();
+    }
+
     pub fn reset_current_mode(&mut self) {
         self.current_time = match self.mode {
             TimerMode::Work => self.work_duration,
@@ -87,6 +143,7 @@ impl TimerState {
         if self.mode == TimerMode::Work && !self.is_running {
             self.current_time = self.work_duration;
         }
+        self.save_config();
     }
 
     pub fn set_pause_duration(&mut self, minutes: u64) {
@@ -94,10 +151,12 @@ impl TimerState {
         if self.mode == TimerMode::Pause && !self.is_running {
             self.current_time = self.pause_duration;
         }
+        self.save_config();
     }
-
+    
     pub fn set_notification_mode(&mut self, mode: NotificationMode) {
         self.notification_mode = mode;
+        self.save_config();
     }
 
     pub fn total_duration(&self) -> Duration {
@@ -106,13 +165,13 @@ impl TimerState {
             TimerMode::Pause => self.pause_duration,
         }
     }
-
+    
     pub fn progress(&self) -> f32 {
         let total = self.total_duration().as_secs_f32();
         if total == 0.0 {
             return 0.0;
         }
-        // Progress usually means how much time has passed, or how much is left.
+        // Progress usually means how much time has passed, or how much is left. 
         // Circular timers often deplete. Let's return fraction remaining (0.0 to 1.0).
         self.current_time.as_secs_f32() / total
     }

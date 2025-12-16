@@ -32,7 +32,7 @@ fn main() {
 }
 
 fn App() -> Element {
-    let mut timer_state = use_signal(|| TimerState::new(1, 1));
+    let mut timer_state = use_signal(|| TimerState::new(25, 2));
     let mut show_settings = use_signal(|| false);
     let window = dioxus::desktop::use_window();
 
@@ -51,17 +51,27 @@ fn App() -> Element {
                         let finished = timer_state.write().tick();
 
                         if finished {
+                             // Automatically switch mode logic
+                             let current_mode = timer_state.read().mode;
+                             let new_mode = match current_mode {
+                                 TimerMode::Work => TimerMode::Pause,
+                                 TimerMode::Pause => TimerMode::Work,
+                             };
+                             
+                             // We update the state to the new mode so the UI (and next timer) reflects it
+                             timer_state.write().switch_mode(new_mode);
+
                              let state = timer_state.read();
-                             let title = match state.mode {
+                             let title = match current_mode { // Use previous mode for the notification message
                                  TimerMode::Work => "Focus Session Complete",
                                  TimerMode::Pause => "Break Complete",
                              };
-                             let body = match state.mode {
+                             let body = match current_mode {
                                  TimerMode::Work => "Time to take a break!",
                                  TimerMode::Pause => "Time to focus!",
                              };
                              let mode = state.notification_mode;
-
+            
                              match mode {
                                  NotificationMode::Popup => {
                                      window.set_focus();
@@ -132,10 +142,17 @@ fn App() -> Element {
                 TimerCircle { state: timer_state }
 
                 div { class: "controls", style: "margin-top: 30px; display: flex; gap: 10px;",
-                    button {
+                    button { 
                         class: "btn",
                         onclick: move |_| timer_state.write().toggle(),
-                        if timer_state.read().is_running { "Pause" } else { "Start to Focus" }
+                        if timer_state.read().is_running { 
+                            "Pause" 
+                        } else { 
+                            match timer_state.read().mode {
+                                TimerMode::Work => "Start to Focus",
+                                TimerMode::Pause => "Start Break",
+                            }
+                        }
                     }
                     button {
                         class: "btn-icon",
