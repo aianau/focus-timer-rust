@@ -35,6 +35,11 @@ fn main() {
         (800.0, 600.0)
     };
 
+    // Load icon for window
+    let (icon_rgba, icon_width, icon_height) = tray::load_icon_data();
+    let window_icon = dioxus::desktop::tao::window::Icon::from_rgba(icon_rgba, icon_width, icon_height)
+        .expect("Failed to create window icon");
+
     let config = dioxus::desktop::Config::new()
         .with_custom_head(r#"<link rel="stylesheet" href="assets/style.css">"#.to_string())
         .with_window(
@@ -42,7 +47,8 @@ fn main() {
                 .with_title("Focus Timer")
                 .with_decorations(false) // Custom title bar for tray support
                 .with_resizable(true)
-                .with_inner_size(dioxus::desktop::tao::dpi::LogicalSize::new(width, height)),
+                .with_inner_size(dioxus::desktop::tao::dpi::LogicalSize::new(width, height))
+                .with_window_icon(Some(window_icon)),
         );
 
     LaunchBuilder::desktop().with_cfg(config).launch(app);

@@ -4,7 +4,8 @@ use usvg::{Tree, Options};
 use tiny_skia::{Pixmap, Transform};
 
 pub fn create_tray_icon() -> TrayIcon {
-    let icon = load_icon();
+    let (icon_rgba, icon_width, icon_height) = load_icon_data();
+    let icon = Icon::from_rgba(icon_rgba, icon_width, icon_height).expect("Failed to create icon");
     
     // Create menu
     let menu = Menu::new();
@@ -24,7 +25,7 @@ pub fn create_tray_icon() -> TrayIcon {
         .unwrap()
 }
 
-fn load_icon() -> Icon {
+pub fn load_icon_data() -> (Vec<u8>, u32, u32) {
     let svg_data = include_bytes!("../assets/timer-svgrepo-com.svg");
     let options = Options::default();
     let tree = Tree::from_data(svg_data, &options).expect("Failed to parse SVG");
@@ -43,9 +44,5 @@ fn load_icon() -> Icon {
     
     resvg::render(&tree, transform, &mut pixmap.as_mut());
     
-    // tiny-skia produces premultiplied alpha.
-    // For a black icon, this is fine.
-    
-    let rgba = pixmap.take();
-    Icon::from_rgba(rgba, WIDTH, HEIGHT).expect("Failed to create icon")
+    (pixmap.take(), WIDTH, HEIGHT)
 }
