@@ -147,10 +147,11 @@ fn app() -> Element {
                 tokio::select! {
                     msg = rx.recv() => {
                         if let Some(should_start) = msg {
-                            window.set_visible(true);
-                            window.set_focus();
                             if should_start {
                                 timer_state.write().toggle();
+                            } else {
+                                window.set_visible(true);
+                                window.set_focus();
                             }
                         }
                     }
