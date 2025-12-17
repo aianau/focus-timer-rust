@@ -141,13 +141,18 @@ fn app() -> Element {
     use_future(move || {
         let window = window_timer.clone();
         async move {
-            let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<()>();
+            let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<bool>();
 
             loop {
                 tokio::select! {
-                    _ = rx.recv() => {
-                        window.set_visible(true);
-                        window.set_focus();
+                    msg = rx.recv() => {
+                        if let Some(should_start) = msg {
+                            window.set_visible(true);
+                            window.set_focus();
+                            if should_start {
+                                timer_state.write().toggle();
+                            }
+                        }
                     }
                     _ = tokio::time::sleep(Duration::from_secs(1)) => {
                         let finished = timer_state.write().tick();
@@ -184,6 +189,10 @@ fn app() -> Element {
                                  TimerMode::Work => "Time to take a break!",
                                  TimerMode::Pause => "Time to focus!",
                              };
+                             let start_button_text = match new_mode {
+                                 TimerMode::Work => "Start to Focus",
+                                 TimerMode::Pause => "Start Break",
+                             };
                              let mode = state.notification_mode;
             
                              match mode {
@@ -207,13 +216,19 @@ fn app() -> Element {
                                              if mode == NotificationMode::NotificationPersistent {
                                                   toast = toast.scenario(Scenario::Alarm);
                                                   toast = toast.add_button("Ok", "Ok");
+                                                  toast = toast.add_button(start_button_text, "start");
                                              } else {
                                                   toast = toast.duration(ToastDuration::Short);
                                              }
 
                                              let _ = toast
-                                                 .on_activated(move |_| {
-                                                      let _ = tx_clone.send(());
+                                                 .on_activated(move |action| {
+                                                      let should_start = if let Some(args) = action {
+                                                          args == "start"
+                                                      } else {
+                                                          false
+                                                      };
+                                                      let _ = tx_clone.send(should_start);
                                                       Ok(())
                                                  })
                                                  .show();
