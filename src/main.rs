@@ -17,6 +17,7 @@ use tauri_winrt_notification::{Duration as ToastDuration, Scenario, Toast};
 use crate::components::settings::SettingsModal;
 use crate::components::timer_circle::TimerCircle;
 use crate::components::titlebar::TitleBar;
+use crate::components::task_list::TaskList; // Import TaskList
 use crate::state::{NotificationMode, TimerMode, TimerState};
 use crate::events::AppEvent; // Import AppEvent
 
@@ -245,8 +246,18 @@ fn App() -> Element {
                 }
                 div { class: "card",
                     h3 { "Today" }
-                    div { style: "text-align: center; color: var(--text-secondary);",
-                        "No Task"
+                    TaskList {
+                        tasks: {
+                            let tasks = timer_state.read().history.get_today_tasks();
+                            if timer_state.read().hide_completed_tasks {
+                                tasks.into_iter().filter(|t| !t.completed).collect()
+                            } else {
+                                tasks
+                            }
+                        },
+                        on_add: move |title| timer_state.write().history.add_task(title),
+                        on_toggle: move |id| timer_state.write().history.toggle_task(id),
+                        on_remove: move |id| timer_state.write().history.remove_task(id),
                     }
                 }
             }

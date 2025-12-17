@@ -216,3 +216,99 @@ body {
 }
 
 /* Tick marks container for the timer if we wanted them (css only solution is hard without many divs) */
+
+/* Task List Styles */
+.task-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.task-input-container {
+    display: flex;
+    gap: 5px;
+    align-items: center;
+}
+
+.task-input {
+    flex: 1;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid transparent;
+    border-radius: 4px;
+    padding: 8px;
+    color: white;
+    font-family: inherit;
+}
+
+.task-input:focus {
+    outline: none;
+    border-color: var(--highlight-color);
+    background: rgba(0, 0, 0, 0.4);
+}
+
+.btn-icon-small {
+    background: transparent;
+    color: var(--text-primary);
+    border: none;
+    cursor: pointer;
+    font-size: 1.2rem;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: background 0.2s;
+}
+
+.btn-icon-small:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.btn-icon-small.remove:hover {
+    color: #ef4444;
+    background: rgba(239, 68, 68, 0.1);
+}
+
+.tasks {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.task-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 5px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.task-item:last-child {
+    border-bottom: none;
+}
+
+.task-title {
+    flex: 1;
+    word-break: break-word;
+}
+
+.task-title.completed {
+    text-decoration: line-through;
+    color: var(--text-secondary);
+}
+
+.tasks::-webkit-scrollbar {
+    width: 6px;
+}
+
+.tasks::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+}
+
+.tasks::-webkit-scrollbar-track {
+    background: transparent;
+}

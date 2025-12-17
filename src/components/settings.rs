@@ -60,6 +60,18 @@ pub fn SettingsModal(on_close: EventHandler<()>, state: Signal<TimerState>) -> E
                     }
                 }
 
+                div { class: "input-group", style: "display: flex; align-items: center; gap: 10px;",
+                    input {
+                        r#type: "checkbox",
+                        style: "width: auto;",
+                        checked: s.read().hide_completed_tasks,
+                        onchange: move |evt| {
+                             s.write().set_hide_completed_tasks(evt.checked());
+                        }
+                    }
+                    label { style: "margin: 0;", "Hide Completed Tasks" }
+                }
+
                 div { style: "display: flex; justify-content: flex-end; margin-top: 20px;",
                     button {
                         class: "btn",

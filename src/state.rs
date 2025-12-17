@@ -35,12 +35,22 @@ pub struct FocusSession {
     pub mode: TimerMode,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct Task {
+    pub id: u64,
+    pub title: String,
+    pub completed: bool,
+    pub created_at: DateTime<Local>,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, Default, PartialEq)]
 pub struct SessionHistory {
     pub sessions: Vec<FocusSession>,
+    pub tasks: Vec<Task>,
 }
 
 impl SessionHistory {
+    // ... existing methods ...
     fn get_path() -> PathBuf {
         PathBuf::from("focus_history.json")
     }
@@ -49,19 +59,7 @@ impl SessionHistory {
         let path = Self::get_path();
         if path.exists() {
             if let Ok(content) = fs::read_to_string(path) {
-                // Handle migration from old format where mode was missing
-                // We'll just assume old sessions were Work sessions if deserialization fails? 
-                // Or better, let serde default it if we can. 
-                // But `TimerMode` doesn't implement Default.
-                // Let's use a custom deserializer or just wipe/ignore errors if schema changed drastically.
-                // Or, we can use a helper struct.
-                // Let's try to match the struct. If it fails, maybe return default.
-                
-                // For simplicity, let's just default if error.
-                // Ideally we'd migrate.
-                // Since I just added the file today, losing history is probably acceptable, or I can manually fix the json.
-                // But let's try to be robust. 
-                // If I add `#[serde(default)]` to `mode` it needs `Default` on `TimerMode`.
+                // Return default if deserialization fails to handle migration safely for now
                 return serde_json::from_str(&content).unwrap_or_default();
             }
         }
@@ -101,6 +99,43 @@ impl SessionHistory {
             .sum();
         Duration::from_secs(total_secs)
     }
+
+    // Task management
+    pub fn add_task(&mut self, title: String) {
+        let id = self.tasks.iter().map(|t| t.id).max().unwrap_or(0) + 1;
+        self.tasks.push(Task {
+            id,
+            title,
+            completed: false,
+            created_at: Local::now(),
+        });
+        self.save();
+    }
+
+    pub fn toggle_task(&mut self, id: u64) {
+        if let Some(task) = self.tasks.iter_mut().find(|t| t.id == id) {
+            task.completed = !task.completed;
+            self.save();
+        }
+    }
+
+    pub fn remove_task(&mut self, id: u64) {
+        self.tasks.retain(|t| t.id != id);
+        self.save();
+    }
+    
+    pub fn get_today_tasks(&self) -> Vec<Task> {
+        // For now, let's just return all non-completed tasks or tasks completed today.
+        // Or simply all tasks if we want a persistent checklist.
+        // User asked for "checklist in the div class card with the h3 `Today`".
+        // This usually implies tasks for today.
+        // Let's filter: uncompleted tasks OR tasks completed today.
+        let today = Local::now().date_naive();
+        self.tasks.iter()
+            .filter(|t| !t.completed || t.created_at.date_naive() == today) // Simple logic: Keep pending, or if done today.
+            .cloned()
+            .collect()
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -112,6 +147,7 @@ pub struct TimerState {
     pub mode: TimerMode,
     pub notification_mode: NotificationMode,
     pub history: SessionHistory,
+    pub hide_completed_tasks: bool,
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -119,6 +155,7 @@ struct AppConfig {
     work_minutes: u64,
     pause_minutes: u64,
     notification_mode: Option<NotificationMode>,
+    hide_completed_tasks: Option<bool>,
 }
 
 impl AppConfig {
@@ -148,10 +185,15 @@ impl AppConfig {
 impl TimerState {
     pub fn new(default_work_minutes: u64, default_pause_minutes: u64) -> Self {
         // Try to load config, otherwise use defaults
-        let (work_minutes, pause_minutes, notif_mode) = if let Some(config) = AppConfig::load() {
-            (config.work_minutes, config.pause_minutes, config.notification_mode.unwrap_or(NotificationMode::NotificationPersistent))
+        let (work_minutes, pause_minutes, notif_mode, hide_completed) = if let Some(config) = AppConfig::load() {
+            (
+                config.work_minutes, 
+                config.pause_minutes, 
+                config.notification_mode.unwrap_or(NotificationMode::NotificationPersistent),
+                config.hide_completed_tasks.unwrap_or(false)
+            )
         } else {
-            (default_work_minutes, default_pause_minutes, NotificationMode::NotificationPersistent)
+            (default_work_minutes, default_pause_minutes, NotificationMode::NotificationPersistent, false)
         };
 
         let work_duration = Duration::from_secs(work_minutes * 60);
@@ -165,6 +207,7 @@ impl TimerState {
             mode: TimerMode::Work,
             notification_mode: notif_mode,
             history: SessionHistory::load(),
+            hide_completed_tasks: hide_completed,
         }
     }
 
@@ -173,6 +216,7 @@ impl TimerState {
             work_minutes: self.work_duration.as_secs() / 60,
             pause_minutes: self.pause_duration.as_secs() / 60,
             notification_mode: Some(self.notification_mode),
+            hide_completed_tasks: Some(self.hide_completed_tasks),
         };
         config.save();
     }
@@ -234,6 +278,11 @@ impl TimerState {
     
     pub fn set_notification_mode(&mut self, mode: NotificationMode) {
         self.notification_mode = mode;
+        self.save_config();
+    }
+
+    pub fn set_hide_completed_tasks(&mut self, hide: bool) {
+        self.hide_completed_tasks = hide;
         self.save_config();
     }
 
