@@ -59,7 +59,6 @@ impl SessionHistory {
         let path = Self::get_path();
         if path.exists() {
             if let Ok(content) = fs::read_to_string(path) {
-                // Return default if deserialization fails to handle migration safely for now
                 return serde_json::from_str(&content).unwrap_or_default();
             }
         }
@@ -125,14 +124,9 @@ impl SessionHistory {
     }
     
     pub fn get_today_tasks(&self) -> Vec<Task> {
-        // For now, let's just return all non-completed tasks or tasks completed today.
-        // Or simply all tasks if we want a persistent checklist.
-        // User asked for "checklist in the div class card with the h3 `Today`".
-        // This usually implies tasks for today.
-        // Let's filter: uncompleted tasks OR tasks completed today.
         let today = Local::now().date_naive();
         self.tasks.iter()
-            .filter(|t| !t.completed || t.created_at.date_naive() == today) // Simple logic: Keep pending, or if done today.
+            .filter(|t| !t.completed || t.created_at.date_naive() == today)
             .cloned()
             .collect()
     }

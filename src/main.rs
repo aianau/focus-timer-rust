@@ -1,4 +1,3 @@
-#![allow(non_snake_case)]
 #![windows_subsystem = "windows"]
 
 mod components;
@@ -40,10 +39,10 @@ fn main() {
                 .with_inner_size(dioxus::desktop::tao::dpi::LogicalSize::new(800.0, 600.0)),
         );
 
-    LaunchBuilder::desktop().with_cfg(config).launch(App);
+    LaunchBuilder::desktop().with_cfg(config).launch(app);
 }
 
-fn App() -> Element {
+fn app() -> Element {
     let mut timer_state = use_signal(|| TimerState::new(25, 2));
     let mut show_settings = use_signal(|| false);
     let window = dioxus::desktop::use_window();
@@ -182,7 +181,7 @@ fn App() -> Element {
 
                                          #[cfg(not(target_os = "windows"))]
                                          {
-                                             // ...
+                                             // Notification logic for other OSs
                                          }
                                      });
                                  }
