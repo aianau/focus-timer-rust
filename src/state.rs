@@ -142,23 +142,40 @@ pub struct TimerState {
     pub notification_mode: NotificationMode,
     pub history: SessionHistory,
     pub hide_completed_tasks: bool,
+    pub window_width: u32,
+    pub window_height: u32,
 }
 
-#[derive(Serialize, Deserialize, Default)]
-struct AppConfig {
-    work_minutes: u64,
-    pause_minutes: u64,
-    notification_mode: Option<NotificationMode>,
-    hide_completed_tasks: Option<bool>,
+#[derive(Serialize, Deserialize, Clone)]
+pub struct AppConfig {
+    pub work_minutes: u64,
+    pub pause_minutes: u64,
+    pub notification_mode: Option<NotificationMode>,
+    pub hide_completed_tasks: Option<bool>,
+    pub window_width: Option<u32>,
+    pub window_height: Option<u32>,
+}
+
+impl Default for AppConfig {
+    fn default() -> Self {
+        Self {
+            work_minutes: 25,
+            pause_minutes: 5,
+            notification_mode: Some(NotificationMode::NotificationPersistent),
+            hide_completed_tasks: Some(false),
+            window_width: Some(800),
+            window_height: Some(600),
+        }
+    }
 }
 
 impl AppConfig {
-    fn get_config_path() -> PathBuf {
+    pub fn get_config_path() -> PathBuf {
         // Use a local file for simplicity, or user data dir
         PathBuf::from("focus_timer_config.json")
     }
 
-    fn load() -> Option<Self> {
+    pub fn load() -> Option<Self> {
         let path = Self::get_config_path();
         if path.exists() {
             if let Ok(content) = fs::read_to_string(path) {
@@ -168,7 +185,7 @@ impl AppConfig {
         None
     }
 
-    fn save(&self) {
+    pub fn save(&self) {
         let path = Self::get_config_path();
         if let Ok(content) = serde_json::to_string_pretty(self) {
             let _ = fs::write(path, content);
@@ -179,15 +196,17 @@ impl AppConfig {
 impl TimerState {
     pub fn new(default_work_minutes: u64, default_pause_minutes: u64) -> Self {
         // Try to load config, otherwise use defaults
-        let (work_minutes, pause_minutes, notif_mode, hide_completed) = if let Some(config) = AppConfig::load() {
+        let (work_minutes, pause_minutes, notif_mode, hide_completed, width, height) = if let Some(config) = AppConfig::load() {
             (
                 config.work_minutes, 
                 config.pause_minutes, 
                 config.notification_mode.unwrap_or(NotificationMode::NotificationPersistent),
-                config.hide_completed_tasks.unwrap_or(false)
+                config.hide_completed_tasks.unwrap_or(false),
+                config.window_width.unwrap_or(800),
+                config.window_height.unwrap_or(600)
             )
         } else {
-            (default_work_minutes, default_pause_minutes, NotificationMode::NotificationPersistent, false)
+            (default_work_minutes, default_pause_minutes, NotificationMode::NotificationPersistent, false, 800, 600)
         };
 
         let work_duration = Duration::from_secs(work_minutes * 60);
@@ -202,6 +221,8 @@ impl TimerState {
             notification_mode: notif_mode,
             history: SessionHistory::load(),
             hide_completed_tasks: hide_completed,
+            window_width: width,
+            window_height: height,
         }
     }
 
@@ -211,8 +232,18 @@ impl TimerState {
             pause_minutes: self.pause_duration.as_secs() / 60,
             notification_mode: Some(self.notification_mode),
             hide_completed_tasks: Some(self.hide_completed_tasks),
+            window_width: Some(self.window_width),
+            window_height: Some(self.window_height),
         };
         config.save();
+    }
+
+    pub fn set_window_size(&mut self, width: u32, height: u32) {
+        if self.window_width != width || self.window_height != height {
+            self.window_width = width;
+            self.window_height = height;
+            self.save_config();
+        }
     }
 
     /// Ticks the timer. Returns true if the timer just finished.

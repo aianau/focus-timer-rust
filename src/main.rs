@@ -18,7 +18,7 @@ use crate::components::timer_circle::TimerCircle;
 use crate::components::titlebar::TitleBar;
 use crate::components::task_list::TaskList; // Import TaskList
 use crate::components::resize_handles::ResizeHandles;
-use crate::state::{NotificationMode, TimerMode, TimerState};
+use crate::state::{NotificationMode, TimerMode, TimerState, AppConfig};
 use crate::events::AppEvent; // Import AppEvent
 
 fn main() {
@@ -29,6 +29,12 @@ fn main() {
     // Initialize tray icon (keep it alive)
     let _tray = tray::create_tray_icon();
 
+    let (width, height) = if let Some(config) = AppConfig::load() {
+        (config.window_width.unwrap_or(800) as f64, config.window_height.unwrap_or(600) as f64)
+    } else {
+        (800.0, 600.0)
+    };
+
     let config = dioxus::desktop::Config::new()
         .with_custom_head(r#"<link rel="stylesheet" href="assets/style.css">"#.to_string())
         .with_window(
@@ -36,7 +42,7 @@ fn main() {
                 .with_title("Focus Timer")
                 .with_decorations(false) // Custom title bar for tray support
                 .with_resizable(true)
-                .with_inner_size(dioxus::desktop::tao::dpi::LogicalSize::new(800.0, 600.0)),
+                .with_inner_size(dioxus::desktop::tao::dpi::LogicalSize::new(width, height)),
         );
 
     LaunchBuilder::desktop().with_cfg(config).launch(app);
@@ -48,6 +54,34 @@ fn app() -> Element {
     let window = dioxus::desktop::use_window();
     let window_tray = window.clone();
     let window_timer = window.clone();
+    let window_resize = window.clone();
+
+    // Window Resize Observer
+    use_future(move || {
+        let window = window_resize.clone();
+        let mut timer_state = timer_state;
+        async move {
+            loop {
+                tokio::time::sleep(Duration::from_secs(2)).await;
+                let size = window.inner_size();
+                let scale = window.scale_factor();
+                
+                // Convert to logical size
+                let width = (size.width as f64 / scale) as u32;
+                let height = (size.height as f64 / scale) as u32;
+                
+                // Read current state to avoid unnecessary writes
+                let (current_width, current_height) = {
+                    let s = timer_state.read();
+                    (s.window_width, s.window_height)
+                };
+                
+                if current_width != width || current_height != height {
+                     timer_state.write().set_window_size(width, height);
+                }
+            }
+        }
+    });
 
     // Listen to tray events
     use_future(move || {
