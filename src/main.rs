@@ -114,6 +114,18 @@ fn App() -> Element {
                         if finished {
                              // Automatically switch mode logic
                              let current_mode = timer_state.read().mode;
+
+                             match current_mode {
+                                 TimerMode::Work => {
+                                     let duration = timer_state.read().work_duration;
+                                     timer_state.write().history.add_session(duration, TimerMode::Work);
+                                 }
+                                 TimerMode::Pause => {
+                                     let duration = timer_state.read().pause_duration;
+                                     timer_state.write().history.add_session(duration, TimerMode::Pause);
+                                 }
+                             }
+
                              let new_mode = match current_mode {
                                  TimerMode::Work => TimerMode::Pause,
                                  TimerMode::Pause => TimerMode::Work,
@@ -221,7 +233,15 @@ fn App() -> Element {
             div { class: "sidebar",
                 div { class: "card",
                     h3 { "Focus Time of Today" }
-                    p { class: "highlight-text", style: "color: #ef4444; font-size: 2em;", "0m" }
+                    p { class: "highlight-text", style: "color:rgb(164, 248, 86); font-size: 2em;", 
+                        "{timer_state.read().history.get_today_focus_duration().as_secs() / 60}m" 
+                    }
+                    div { style: "margin-top: 10px; border-top: 1px solid #eee; padding-top: 10px;",
+                        p { style: "color: var(--text-secondary); margin: 0;", "Break Time Today" }
+                        p { style: "font-size: 1.2em; font-weight: bold; margin: 0;", 
+                            "{timer_state.read().history.get_today_break_duration().as_secs() / 60}m" 
+                        }
+                    }
                 }
                 div { class: "card",
                     h3 { "Today" }

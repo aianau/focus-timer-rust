@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+chrono = { version = "0.4.42", features = ["serde"] }
 dioxus = { version = "0.5", features = ["desktop", "hooks"] }
 dioxus-logger = "0.5"
 muda = "0.17.1"

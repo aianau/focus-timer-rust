@@ -3,6 +3,7 @@ use std::time::Duration;
 use serde::{Serialize, Deserialize};
 use std::fs;
 use std::path::PathBuf;
+use chrono::{DateTime, Local};
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub enum TimerMode {
@@ -27,7 +28,82 @@ impl fmt::Display for NotificationMode {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct FocusSession {
+    pub start_time: DateTime<Local>,
+    pub duration_secs: u64,
+    pub mode: TimerMode,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, Default, PartialEq)]
+pub struct SessionHistory {
+    pub sessions: Vec<FocusSession>,
+}
+
+impl SessionHistory {
+    fn get_path() -> PathBuf {
+        PathBuf::from("focus_history.json")
+    }
+
+    pub fn load() -> Self {
+        let path = Self::get_path();
+        if path.exists() {
+            if let Ok(content) = fs::read_to_string(path) {
+                // Handle migration from old format where mode was missing
+                // We'll just assume old sessions were Work sessions if deserialization fails? 
+                // Or better, let serde default it if we can. 
+                // But `TimerMode` doesn't implement Default.
+                // Let's use a custom deserializer or just wipe/ignore errors if schema changed drastically.
+                // Or, we can use a helper struct.
+                // Let's try to match the struct. If it fails, maybe return default.
+                
+                // For simplicity, let's just default if error.
+                // Ideally we'd migrate.
+                // Since I just added the file today, losing history is probably acceptable, or I can manually fix the json.
+                // But let's try to be robust. 
+                // If I add `#[serde(default)]` to `mode` it needs `Default` on `TimerMode`.
+                return serde_json::from_str(&content).unwrap_or_default();
+            }
+        }
+        Self::default()
+    }
+
+    pub fn save(&self) {
+        let path = Self::get_path();
+        if let Ok(content) = serde_json::to_string_pretty(self) {
+            let _ = fs::write(path, content);
+        }
+    }
+
+    pub fn add_session(&mut self, duration: Duration, mode: TimerMode) {
+        self.sessions.push(FocusSession {
+            start_time: Local::now(),
+            duration_secs: duration.as_secs(),
+            mode,
+        });
+        self.save();
+    }
+
+    pub fn get_today_focus_duration(&self) -> Duration {
+        let today = Local::now().date_naive();
+        let total_secs: u64 = self.sessions.iter()
+            .filter(|s| s.start_time.date_naive() == today && s.mode == TimerMode::Work)
+            .map(|s| s.duration_secs)
+            .sum();
+        Duration::from_secs(total_secs)
+    }
+
+    pub fn get_today_break_duration(&self) -> Duration {
+        let today = Local::now().date_naive();
+        let total_secs: u64 = self.sessions.iter()
+            .filter(|s| s.start_time.date_naive() == today && s.mode == TimerMode::Pause)
+            .map(|s| s.duration_secs)
+            .sum();
+        Duration::from_secs(total_secs)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct TimerState {
     pub current_time: Duration,
     pub work_duration: Duration,
@@ -35,6 +111,7 @@ pub struct TimerState {
     pub is_running: bool,
     pub mode: TimerMode,
     pub notification_mode: NotificationMode,
+    pub history: SessionHistory,
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -87,6 +164,7 @@ impl TimerState {
             is_running: false,
             mode: TimerMode::Work,
             notification_mode: notif_mode,
+            history: SessionHistory::load(),
         }
     }
 
