@@ -1,9 +1,10 @@
-
 use tray_icon::{TrayIcon, TrayIconBuilder, Icon};
 use tray_icon::menu::{Menu, MenuItem};
+use usvg::{Tree, Options};
+use tiny_skia::{Pixmap, Transform};
 
 pub fn create_tray_icon() -> TrayIcon {
-    let icon = generate_icon();
+    let icon = load_icon();
     
     // Create menu
     let menu = Menu::new();
@@ -23,15 +24,28 @@ pub fn create_tray_icon() -> TrayIcon {
         .unwrap()
 }
 
-fn generate_icon() -> Icon {
-    const WIDTH: u32 = 16;
-    const HEIGHT: u32 = 16;
-    let mut rgba = Vec::new();
-    for _ in 0..HEIGHT {
-        for _ in 0..WIDTH {
-            rgba.extend_from_slice(&[255, 0, 0, 255]); // Red
-        }
-    }
+fn load_icon() -> Icon {
+    let svg_data = include_bytes!("../assets/timer-svgrepo-com.svg");
+    let options = Options::default();
+    let tree = Tree::from_data(svg_data, &options).expect("Failed to parse SVG");
+    
+    const WIDTH: u32 = 32;
+    const HEIGHT: u32 = 32;
+    
+    let mut pixmap = Pixmap::new(WIDTH, HEIGHT).expect("Failed to create pixmap");
+    
+    let svg_width = tree.size().width();
+    let svg_height = tree.size().height();
+    let scale_x = WIDTH as f32 / svg_width;
+    let scale_y = HEIGHT as f32 / svg_height;
+    
+    let transform = Transform::from_scale(scale_x, scale_y);
+    
+    resvg::render(&tree, transform, &mut pixmap.as_mut());
+    
+    // tiny-skia produces premultiplied alpha.
+    // For a black icon, this is fine.
+    
+    let rgba = pixmap.take();
     Icon::from_rgba(rgba, WIDTH, HEIGHT).expect("Failed to create icon")
 }
-

@@ -9,10 +9,13 @@ dioxus = { version = "0.5", features = ["desktop", "hooks"] }
 dioxus-logger = "0.5"
 muda = "0.17.1"
 notify-rust = "4.11.7"
+resvg = "0.45.1"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
 tao = { version = "0.34.5", features = ["rwh_05"] }
 tauri-winrt-notification = "0.7.2"
+tiny-skia = "0.11.4"
 tokio = { version = "1.48.0", features = ["full"] }
 tracing = "0.1"
 tray-icon = "0.21.2"
+usvg = "0.45.1"
