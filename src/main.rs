@@ -18,6 +18,7 @@ use crate::components::settings::SettingsModal;
 use crate::components::timer_circle::TimerCircle;
 use crate::components::titlebar::TitleBar;
 use crate::components::task_list::TaskList; // Import TaskList
+use crate::components::resize_handles::ResizeHandles;
 use crate::state::{NotificationMode, TimerMode, TimerState};
 use crate::events::AppEvent; // Import AppEvent
 
@@ -194,6 +195,7 @@ fn App() -> Element {
     });
 
     rsx! {
+        ResizeHandles {}
         TitleBar {}
         div { class: "app-container",
             div { class: "timer-section",
