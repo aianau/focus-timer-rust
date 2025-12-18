@@ -72,6 +72,29 @@ pub fn SettingsModal(on_close: EventHandler<()>, state: Signal<TimerState>) -> E
                     label { style: "margin: 0;", "Hide Completed Tasks" }
                 }
 
+                div { class: "input-group", style: "display: flex; align-items: center; gap: 10px;",
+                    input {
+                        r#type: "checkbox",
+                        style: "width: auto;",
+                        checked: s.read().auto_delete_old_tasks,
+                        onchange: move |evt| {
+                             s.write().set_auto_delete_old_tasks(evt.checked());
+                        }
+                    }
+                    label { style: "margin: 0;", "Auto-delete completed tasks older than 48h" }
+                }
+
+                div { class: "input-group",
+                    button {
+                        class: "btn",
+                        style: "width: auto; background-color: #555; color: white; margin-top: 10px; font-size: 0.8rem; padding: 6px 12px;",
+                        onclick: move |_| {
+                            s.write().remove_completed_tasks();
+                        },
+                        "Delete Completed Tasks"
+                    }
+                }
+
                 div { style: "display: flex; justify-content: flex-end; margin-top: 20px;",
                     button {
                         class: "btn",

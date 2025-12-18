@@ -122,6 +122,11 @@ impl SessionHistory {
         self.tasks.retain(|t| t.id != id);
         self.save();
     }
+
+    pub fn remove_completed_tasks(&mut self) {
+        self.tasks.retain(|t| !t.completed);
+        self.save();
+    }
     
     pub fn get_today_tasks(&self) -> Vec<Task> {
         let today = Local::now().date_naive();
@@ -129,6 +134,12 @@ impl SessionHistory {
             .filter(|t| !t.completed || t.created_at.date_naive() == today)
             .cloned()
             .collect()
+    }
+
+    pub fn check_auto_delete(&mut self) {
+        let threshold = Local::now() - chrono::Duration::hours(48);
+        self.tasks.retain(|t| !t.completed || t.created_at >= threshold);
+        self.save();
     }
 }
 
@@ -142,6 +153,7 @@ pub struct TimerState {
     pub notification_mode: NotificationMode,
     pub history: SessionHistory,
     pub hide_completed_tasks: bool,
+    pub auto_delete_old_tasks: bool,
     pub window_width: u32,
     pub window_height: u32,
 }
@@ -152,6 +164,7 @@ pub struct AppConfig {
     pub pause_minutes: u64,
     pub notification_mode: Option<NotificationMode>,
     pub hide_completed_tasks: Option<bool>,
+    pub auto_delete_old_tasks: Option<bool>,
     pub window_width: Option<u32>,
     pub window_height: Option<u32>,
 }
@@ -163,6 +176,7 @@ impl Default for AppConfig {
             pause_minutes: 5,
             notification_mode: Some(NotificationMode::NotificationPersistent),
             hide_completed_tasks: Some(false),
+            auto_delete_old_tasks: Some(false),
             window_width: Some(800),
             window_height: Some(600),
         }
@@ -196,23 +210,24 @@ impl AppConfig {
 impl TimerState {
     pub fn new(default_work_minutes: u64, default_pause_minutes: u64) -> Self {
         // Try to load config, otherwise use defaults
-        let (work_minutes, pause_minutes, notif_mode, hide_completed, width, height) = if let Some(config) = AppConfig::load() {
+        let (work_minutes, pause_minutes, notif_mode, hide_completed, auto_delete, width, height) = if let Some(config) = AppConfig::load() {
             (
                 config.work_minutes, 
                 config.pause_minutes, 
                 config.notification_mode.unwrap_or(NotificationMode::NotificationPersistent),
                 config.hide_completed_tasks.unwrap_or(false),
+                config.auto_delete_old_tasks.unwrap_or(false),
                 config.window_width.unwrap_or(800),
                 config.window_height.unwrap_or(600)
             )
         } else {
-            (default_work_minutes, default_pause_minutes, NotificationMode::NotificationPersistent, false, 800, 600)
+            (default_work_minutes, default_pause_minutes, NotificationMode::NotificationPersistent, false, false, 800, 600)
         };
 
         let work_duration = Duration::from_secs(work_minutes * 60);
         let pause_duration = Duration::from_secs(pause_minutes * 60);
         
-        Self {
+        let mut state = Self {
             current_time: work_duration,
             work_duration,
             pause_duration,
@@ -221,9 +236,16 @@ impl TimerState {
             notification_mode: notif_mode,
             history: SessionHistory::load(),
             hide_completed_tasks: hide_completed,
+            auto_delete_old_tasks: auto_delete,
             window_width: width,
             window_height: height,
+        };
+
+        if state.auto_delete_old_tasks {
+            state.history.check_auto_delete();
         }
+
+        state
     }
 
     fn save_config(&self) {
@@ -232,6 +254,7 @@ impl TimerState {
             pause_minutes: self.pause_duration.as_secs() / 60,
             notification_mode: Some(self.notification_mode),
             hide_completed_tasks: Some(self.hide_completed_tasks),
+            auto_delete_old_tasks: Some(self.auto_delete_old_tasks),
             window_width: Some(self.window_width),
             window_height: Some(self.window_height),
         };
@@ -309,6 +332,18 @@ impl TimerState {
     pub fn set_hide_completed_tasks(&mut self, hide: bool) {
         self.hide_completed_tasks = hide;
         self.save_config();
+    }
+
+    pub fn set_auto_delete_old_tasks(&mut self, auto_delete: bool) {
+        self.auto_delete_old_tasks = auto_delete;
+        if auto_delete {
+            self.history.check_auto_delete();
+        }
+        self.save_config();
+    }
+
+    pub fn remove_completed_tasks(&mut self) {
+        self.history.remove_completed_tasks();
     }
 
     pub fn total_duration(&self) -> Duration {
