@@ -54,6 +54,18 @@ fn main() {
     LaunchBuilder::desktop().with_cfg(config).launch(app);
 }
 
+fn format_duration(d: Duration) -> String {
+    let secs = d.as_secs();
+    let total_mins = secs / 60;
+    let h = total_mins / 60;
+    let m = total_mins % 60;
+    if h > 0 {
+        format!("{}h {}m", h, m)
+    } else {
+        format!("{}m", m)
+    }
+}
+
 fn app() -> Element {
     let mut timer_state = use_signal(|| TimerState::new(25, 2));
     let mut show_settings = use_signal(|| false);
@@ -292,12 +304,12 @@ fn app() -> Element {
                 div { class: "card",
                     h3 { "Focus Time of Today" }
                     p { class: "highlight-text", style: "color:rgb(164, 248, 86); font-size: 2em;", 
-                        "{timer_state.read().history.get_today_focus_duration().as_secs() / 60}m" 
+                        "{format_duration(timer_state.read().history.get_today_focus_duration())}" 
                     }
                     div { style: "margin-top: 10px; border-top: 1px solid #eee; padding-top: 10px;",
                         p { style: "color: var(--text-secondary); margin: 0;", "Break Time Today" }
                         p { style: "font-size: 1.2em; font-weight: bold; margin: 0;", 
-                            "{timer_state.read().history.get_today_break_duration().as_secs() / 60}m" 
+                            "{format_duration(timer_state.read().history.get_today_break_duration())}" 
                         }
                     }
                 }
