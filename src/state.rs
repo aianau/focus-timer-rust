@@ -2,8 +2,13 @@ use std::fmt;
 use std::time::Duration;
 use serde::{Serialize, Deserialize};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{PathBuf, Path};
 use chrono::{DateTime, Local};
+
+#[cfg(target_os = "windows")]
+use winreg::enums::*;
+#[cfg(target_os = "windows")]
+use winreg::RegKey;
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub enum TimerMode {
@@ -154,6 +159,7 @@ pub struct TimerState {
     pub history: SessionHistory,
     pub hide_completed_tasks: bool,
     pub auto_delete_old_tasks: bool,
+    pub run_at_startup: bool,
     pub window_width: u32,
     pub window_height: u32,
 }
@@ -165,6 +171,7 @@ pub struct AppConfig {
     pub notification_mode: Option<NotificationMode>,
     pub hide_completed_tasks: Option<bool>,
     pub auto_delete_old_tasks: Option<bool>,
+    pub run_at_startup: Option<bool>,
     pub window_width: Option<u32>,
     pub window_height: Option<u32>,
 }
@@ -177,6 +184,7 @@ impl Default for AppConfig {
             notification_mode: Some(NotificationMode::NotificationPersistent),
             hide_completed_tasks: Some(false),
             auto_delete_old_tasks: Some(false),
+            run_at_startup: Some(false),
             window_width: Some(800),
             window_height: Some(600),
         }
@@ -210,18 +218,19 @@ impl AppConfig {
 impl TimerState {
     pub fn new(default_work_minutes: u64, default_pause_minutes: u64) -> Self {
         // Try to load config, otherwise use defaults
-        let (work_minutes, pause_minutes, notif_mode, hide_completed, auto_delete, width, height) = if let Some(config) = AppConfig::load() {
+        let (work_minutes, pause_minutes, notif_mode, hide_completed, auto_delete, run_startup, width, height) = if let Some(config) = AppConfig::load() {
             (
                 config.work_minutes, 
                 config.pause_minutes, 
                 config.notification_mode.unwrap_or(NotificationMode::NotificationPersistent),
                 config.hide_completed_tasks.unwrap_or(false),
                 config.auto_delete_old_tasks.unwrap_or(false),
+                config.run_at_startup.unwrap_or(false),
                 config.window_width.unwrap_or(800),
                 config.window_height.unwrap_or(600)
             )
         } else {
-            (default_work_minutes, default_pause_minutes, NotificationMode::NotificationPersistent, false, false, 800, 600)
+            (default_work_minutes, default_pause_minutes, NotificationMode::NotificationPersistent, false, false, false, 800, 600)
         };
 
         let work_duration = Duration::from_secs(work_minutes * 60);
@@ -237,9 +246,16 @@ impl TimerState {
             history: SessionHistory::load(),
             hide_completed_tasks: hide_completed,
             auto_delete_old_tasks: auto_delete,
+            run_at_startup: run_startup,
             window_width: width,
             window_height: height,
         };
+
+        // Sync startup state with registry on startup to ensure consistency
+        #[cfg(target_os = "windows")]
+        {
+            state.run_at_startup = state.check_startup_registry();
+        }
 
         if state.auto_delete_old_tasks {
             state.history.check_auto_delete();
@@ -255,6 +271,7 @@ impl TimerState {
             notification_mode: Some(self.notification_mode),
             hide_completed_tasks: Some(self.hide_completed_tasks),
             auto_delete_old_tasks: Some(self.auto_delete_old_tasks),
+            run_at_startup: Some(self.run_at_startup),
             window_width: Some(self.window_width),
             window_height: Some(self.window_height),
         };
@@ -339,6 +356,44 @@ impl TimerState {
         if auto_delete {
             self.history.check_auto_delete();
         }
+        self.save_config();
+    }
+
+    #[cfg(target_os = "windows")]
+    fn check_startup_registry(&self) -> bool {
+        let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+        if let Ok(key) = hkcu.open_subkey("Software\\Microsoft\\Windows\\CurrentVersion\\Run") {
+            return key.get_value::<String, _>("FocusTimerRust").is_ok();
+        }
+        false
+    }
+    
+    #[cfg(not(target_os = "windows"))]
+    fn check_startup_registry(&self) -> bool {
+        false
+    }
+
+    pub fn set_run_at_startup(&mut self, run: bool) {
+        self.run_at_startup = run;
+        
+        #[cfg(target_os = "windows")]
+        {
+            let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+            let path = Path::new("Software").join("Microsoft").join("Windows").join("CurrentVersion").join("Run");
+            
+            if run {
+                if let Ok((key, _)) = hkcu.create_subkey(&path) {
+                    if let Ok(exe_path) = std::env::current_exe() {
+                         let _ = key.set_value("FocusTimerRust", &exe_path.to_str().unwrap_or(""));
+                    }
+                }
+            } else {
+                if let Ok(key) = hkcu.open_subkey(&path) {
+                    let _ = key.delete_value("FocusTimerRust");
+                }
+            }
+        }
+
         self.save_config();
     }
 

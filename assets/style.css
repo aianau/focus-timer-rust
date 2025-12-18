@@ -186,6 +186,21 @@ body {
     width: 350px;
     color: var(--text-primary);
     box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+.modal-content::-webkit-scrollbar {
+    width: 6px;
+}
+
+.modal-content::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+}
+
+.modal-content::-webkit-scrollbar-track {
+    background: transparent;
 }
 
 .input-group {
