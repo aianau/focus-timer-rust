@@ -4,7 +4,7 @@ use usvg::{Tree, Options};
 use tiny_skia::{Pixmap, Transform};
 
 pub fn create_tray_icon() -> TrayIcon {
-    let (icon_rgba, icon_width, icon_height) = load_icon_data();
+    let (icon_rgba, icon_width, icon_height) = load_icon_data(32, 32);
     let icon = Icon::from_rgba(icon_rgba, icon_width, icon_height).expect("Failed to create icon");
     
     // Create menu
@@ -25,24 +25,21 @@ pub fn create_tray_icon() -> TrayIcon {
         .unwrap()
 }
 
-pub fn load_icon_data() -> (Vec<u8>, u32, u32) {
+pub fn load_icon_data(width: u32, height: u32) -> (Vec<u8>, u32, u32) {
     let svg_data = include_bytes!("../assets/timer-svgrepo-com.svg");
     let options = Options::default();
     let tree = Tree::from_data(svg_data, &options).expect("Failed to parse SVG");
     
-    const WIDTH: u32 = 32;
-    const HEIGHT: u32 = 32;
-    
-    let mut pixmap = Pixmap::new(WIDTH, HEIGHT).expect("Failed to create pixmap");
+    let mut pixmap = Pixmap::new(width, height).expect("Failed to create pixmap");
     
     let svg_width = tree.size().width();
     let svg_height = tree.size().height();
-    let scale_x = WIDTH as f32 / svg_width;
-    let scale_y = HEIGHT as f32 / svg_height;
+    let scale_x = width as f32 / svg_width;
+    let scale_y = height as f32 / svg_height;
     
     let transform = Transform::from_scale(scale_x, scale_y);
     
     resvg::render(&tree, transform, &mut pixmap.as_mut());
     
-    (pixmap.take(), WIDTH, HEIGHT)
+    (pixmap.take(), width, height)
 }

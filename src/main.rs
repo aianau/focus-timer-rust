@@ -36,7 +36,7 @@ fn main() {
     };
 
     // Load icon for window
-    let (icon_rgba, icon_width, icon_height) = tray::load_icon_data();
+    let (icon_rgba, icon_width, icon_height) = tray::load_icon_data(256, 256);
     let window_icon = dioxus::desktop::tao::window::Icon::from_rgba(icon_rgba, icon_width, icon_height)
         .expect("Failed to create window icon");
 
