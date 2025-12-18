@@ -4,6 +4,7 @@ use serde::{Serialize, Deserialize};
 use std::fs;
 use std::path::{PathBuf, Path};
 use chrono::{DateTime, Local};
+use dioxus_logger::tracing::{info, error};
 
 #[cfg(target_os = "windows")]
 use winreg::enums::*;
@@ -384,12 +385,19 @@ impl TimerState {
             if run {
                 if let Ok((key, _)) = hkcu.create_subkey(&path) {
                     if let Ok(exe_path) = std::env::current_exe() {
-                         let _ = key.set_value("FocusTimerRust", &exe_path.to_str().unwrap_or(""));
+                         if let Some(parent) = exe_path.parent() {
+                             let parent_str = parent.to_str().unwrap_or("");
+                             let exe_name = exe_path.file_name().unwrap_or_default().to_str().unwrap_or("");
+                             let cmd_val = format!("cmd /c \"cd /d \"{}\" && {}\"", parent_str, exe_name);
+                             info!("Registry command: {}", cmd_val);
+                             let _ = key.set_value("FocusTimerRust", &cmd_val);
+                         }
                     }
                 }
             } else {
-                if let Ok(key) = hkcu.open_subkey(&path) {
-                    let _ = key.delete_value("FocusTimerRust");
+                if let Err(e) = hkcu.open_subkey_with_flags(&path, KEY_SET_VALUE)
+                    .and_then(|key| key.delete_value("FocusTimerRust")) {
+                    error!("{}", e);
                 }
             }
         }
