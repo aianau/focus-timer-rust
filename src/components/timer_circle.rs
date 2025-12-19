@@ -5,10 +5,19 @@ use std::f32::consts::PI;
 #[component]
 pub fn TimerCircle(state: Signal<TimerState>) -> Element {
     let s = state.read();
-    let total_seconds = s.current_time.as_secs();
-    let minutes = total_seconds / 60;
-    let seconds = total_seconds % 60;
-    let time_str = format!("{:02}:{:02}", minutes, seconds);
+    let (minutes, seconds, is_overtime) = if s.current_time.as_secs() > 0 {
+        let total_seconds = s.current_time.as_secs();
+        (total_seconds / 60, total_seconds % 60, false)
+    } else {
+        let total_seconds = s.overtime.as_secs();
+        (total_seconds / 60, total_seconds % 60, true)
+    };
+    
+    let time_str = if is_overtime {
+        format!("+{:02}:{:02}", minutes, seconds)
+    } else {
+        format!("{:02}:{:02}", minutes, seconds)
+    };
 
     let radius = 140.0;
     let stroke = 10.0;
@@ -17,9 +26,15 @@ pub fn TimerCircle(state: Signal<TimerState>) -> Element {
 
     // progress 1.0 -> full circle, 0.0 -> empty
     // s.progress() returns fraction remaining (1.0 down to 0.0)
-    // We want the stroke to shrink as time passes.
-    let progress = s.progress();
+    // In overtime, let's pulse or keep full?
+    let progress = if is_overtime {
+        1.0 // Full circle or maybe 0?
+    } else {
+        s.progress()
+    };
     let stroke_dashoffset = circumference - (progress * circumference);
+
+    let text_color = if is_overtime { "#e8f075" } else { "inherit" };
 
     rsx! {
         div {
@@ -43,7 +58,7 @@ pub fn TimerCircle(state: Signal<TimerState>) -> Element {
 
                 // Progress Circle
                 circle {
-                    stroke: "var(--accent-color)",
+                    stroke: if is_overtime { "#e8f075" } else { "var(--accent-color)" },
                     stroke_dasharray: "{circumference} {circumference}",
                     style: "stroke-dashoffset: {stroke_dashoffset}",
                     stroke_width: "{stroke}",
@@ -60,7 +75,7 @@ pub fn TimerCircle(state: Signal<TimerState>) -> Element {
             // Digital Time Display
             div {
                 class: "timer-text",
-                style: "position: absolute; font-size: 4rem; font-weight: 300;",
+                style: "position: absolute; font-size: 4rem; font-weight: 300; color: {text_color};",
                 "{time_str}"
             }
         }

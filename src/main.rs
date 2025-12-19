@@ -160,7 +160,13 @@ fn app() -> Element {
                     msg = rx.recv() => {
                         if let Some(should_start) = msg {
                             if should_start {
-                                timer_state.write().toggle();
+                                if timer_state.read().current_time.as_secs() == 0 {
+                                    // In overtime, "Start" means finish current and start next
+                                    timer_state.write().finish_current_session();
+                                    timer_state.write().toggle();
+                                } else {
+                                    timer_state.write().toggle();
+                                }
                             } else {
                                 window.set_visible(true);
                                 window.set_focus();
@@ -171,42 +177,28 @@ fn app() -> Element {
                         let finished = timer_state.write().tick();
 
                         if finished {
-                             // Automatically switch mode logic
+                             // Session finished (reached 00:00), notify user but keep running (overtime)
                              let current_mode = timer_state.read().mode;
-
-                             match current_mode {
-                                 TimerMode::Work => {
-                                     let duration = timer_state.read().work_duration;
-                                     timer_state.write().history.add_session(duration, TimerMode::Work);
-                                 }
-                                 TimerMode::Pause => {
-                                     let duration = timer_state.read().pause_duration;
-                                     timer_state.write().history.add_session(duration, TimerMode::Pause);
-                                 }
-                             }
-
-                             let new_mode = match current_mode {
+                             
+                             // Determine next mode for button text
+                             let next_mode = match current_mode {
                                  TimerMode::Work => TimerMode::Pause,
                                  TimerMode::Pause => TimerMode::Work,
                              };
-                             
-                             // We update the state to the new mode so the UI (and next timer) reflects it
-                             timer_state.write().switch_mode(new_mode);
 
-                             let state = timer_state.read();
-                             let title = match current_mode { // Use previous mode for the notification message
+                             let title = match current_mode {
                                  TimerMode::Work => "Focus Session Complete",
                                  TimerMode::Pause => "Break Complete",
                              };
                              let body = match current_mode {
-                                 TimerMode::Work => "Time to take a break!",
-                                 TimerMode::Pause => "Time to focus!",
+                                 TimerMode::Work => "Time to take a break! (Overtime counting...)",
+                                 TimerMode::Pause => "Time to focus! (Overtime counting...)",
                              };
-                             let start_button_text = match new_mode {
+                             let start_button_text = match next_mode {
                                  TimerMode::Work => "Start to Focus",
                                  TimerMode::Pause => "Start Break",
                              };
-                             let mode = state.notification_mode;
+                             let mode = timer_state.read().notification_mode;
             
                              match mode {
                                  NotificationMode::Popup => {
@@ -269,15 +261,29 @@ fn app() -> Element {
                 TimerCircle { state: timer_state }
 
                 div { class: "controls", style: "margin-top: 30px; display: flex; gap: 10px;",
-                    button { 
-                        class: "btn",
-                        onclick: move |_| timer_state.write().toggle(),
-                        if timer_state.read().is_running { 
-                            "Pause" 
-                        } else { 
+                    if timer_state.read().current_time.as_secs() == 0 {
+                        button { 
+                            class: "btn",
+                            onclick: move |_| {
+                                timer_state.write().finish_current_session();
+                                timer_state.write().toggle();
+                            },
                             match timer_state.read().mode {
-                                TimerMode::Work => "Start to Focus",
-                                TimerMode::Pause => "Start Break",
+                                TimerMode::Work => "Start Break",
+                                TimerMode::Pause => "Start Focus",
+                            }
+                        }
+                    } else {
+                        button { 
+                            class: "btn",
+                            onclick: move |_| timer_state.write().toggle(),
+                            if timer_state.read().is_running { 
+                                "Pause" 
+                            } else { 
+                                match timer_state.read().mode {
+                                    TimerMode::Work => "Start to Focus",
+                                    TimerMode::Pause => "Start Break",
+                                }
                             }
                         }
                     }

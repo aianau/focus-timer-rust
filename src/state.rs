@@ -163,6 +163,7 @@ pub struct TimerState {
     pub run_at_startup: bool,
     pub window_width: u32,
     pub window_height: u32,
+    pub overtime: Duration,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -250,6 +251,7 @@ impl TimerState {
             run_at_startup: run_startup,
             window_width: width,
             window_height: height,
+            overtime: Duration::from_secs(0),
         };
 
         // Sync startup state with registry on startup to ensure consistency
@@ -287,30 +289,42 @@ impl TimerState {
         }
     }
 
-    /// Ticks the timer. Returns true if the timer just finished.
+    /// Ticks the timer. Returns true if the timer just reached 00:00 (Session Completed).
     pub fn tick(&mut self) -> bool {
         if self.is_running {
             if self.current_time.as_secs() > 0 {
                 self.current_time = self.current_time.saturating_sub(Duration::from_secs(1));
                 if self.current_time.as_secs() == 0 {
-                    self.is_running = false;
+                    // Timer just hit 0. Continue running for overtime.
                     return true;
                 }
             } else {
-                self.is_running = false;
+                // In overtime
+                self.overtime += Duration::from_secs(1);
             }
         }
         false
     }
 
     pub fn toggle(&mut self) {
-        if self.current_time.as_secs() == 0 {
-            // Reset if finished when toggled
-            self.reset_current_mode();
-            self.is_running = true;
-        } else {
-            self.is_running = !self.is_running;
-        }
+        self.is_running = !self.is_running;
+    }
+
+    pub fn finish_current_session(&mut self) {
+        let duration = match self.mode {
+            TimerMode::Work => self.work_duration,
+            TimerMode::Pause => self.pause_duration,
+        };
+        let actual_duration = duration + self.overtime;
+        self.history.add_session(actual_duration, self.mode);
+
+        let new_mode = match self.mode {
+            TimerMode::Work => TimerMode::Pause,
+            TimerMode::Pause => TimerMode::Work,
+        };
+        
+        self.switch_mode(new_mode);
+        self.overtime = Duration::from_secs(0);
     }
 
     pub fn switch_mode(&mut self, mode: TimerMode) {
@@ -324,6 +338,7 @@ impl TimerState {
             TimerMode::Work => self.work_duration,
             TimerMode::Pause => self.pause_duration,
         };
+        self.overtime = Duration::from_secs(0);
     }
 
     pub fn set_work_duration(&mut self, minutes: u64) {
