@@ -24,7 +24,6 @@ use crate::state::{NotificationMode, TimerMode, TimerState, AppConfig};
 use crate::events::AppEvent; // Import AppEvent
 
 fn main() {
-    // Init logger
     dioxus_logger::init(Level::INFO).expect("failed to init logger");
     info!("starting app");
 
