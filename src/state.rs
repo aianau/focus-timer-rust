@@ -388,7 +388,7 @@ impl TimerState {
                          if let Some(parent) = exe_path.parent() {
                              let parent_str = parent.to_str().unwrap_or("");
                              let exe_name = exe_path.file_name().unwrap_or_default().to_str().unwrap_or("");
-                             let cmd_val = format!("cmd /c \"cd /d \"{}\" && {}\"", parent_str, exe_name);
+                             let cmd_val = format!("cmd /c start \"\" /d \"{}\" \"{}\"", parent_str, exe_name);
                              info!("Registry command: {}", cmd_val);
                              let _ = key.set_value("FocusTimerRust", &cmd_val);
                          }
