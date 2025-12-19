@@ -12,6 +12,8 @@ use tray_icon::{TrayIconEvent, menu::MenuEvent};
 
 #[cfg(target_os = "windows")]
 use tauri_winrt_notification::{Duration as ToastDuration, Scenario, Toast};
+#[cfg(not(target_os = "windows"))]
+use notify_rust::Notification;
 
 use crate::components::settings::SettingsModal;
 use crate::components::timer_circle::TimerCircle;
@@ -241,7 +243,23 @@ fn app() -> Element {
 
                                          #[cfg(not(target_os = "windows"))]
                                          {
-                                             // Notification logic for other OSs
+                                             let mut notification = Notification::new();
+                                             notification
+                                                 .summary(&title)
+                                                 .body(&body);
+                                             
+                                             #[cfg(target_os = "macos")]
+                                             notification.sound_name("Default");
+
+                                             // notify-rust simple show
+                                             if let Err(e) = notification.show() {
+                                                 dioxus_logger::tracing::error!("Failed to show notification: {}", e);
+                                             }
+                                             
+                                             // Note: Actionable notifications on macOS/Linux with pure notify-rust 
+                                             // might require more setup or might not work reliably for "clicking a button" 
+                                             // to start the next session immediately without focusing the app first.
+                                             // For now, we just notify.
                                          }
                                      });
                                  }

@@ -263,6 +263,10 @@ impl TimerState {
         {
             state.run_at_startup = state.check_startup_registry();
         }
+        #[cfg(target_os = "macos")]
+        {
+            state.run_at_startup = state.check_startup_macos();
+        }
 
         if state.auto_delete_old_tasks {
             state.history.check_auto_delete();
@@ -388,7 +392,16 @@ impl TimerState {
         false
     }
     
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "macos")]
+    fn check_startup_macos(&self) -> bool {
+         if let Ok(home) = std::env::var("HOME") {
+             let path = PathBuf::from(home).join("Library/LaunchAgents/com.focustimer.rust.plist");
+             return path.exists();
+         }
+         false
+    }
+
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     fn check_startup_registry(&self) -> bool {
         false
     }
@@ -419,6 +432,44 @@ impl TimerState {
                     error!("{}", e);
                 }
             }
+        }
+
+        #[cfg(target_os = "macos")]
+        {
+             if let Ok(home) = std::env::var("HOME") {
+                 let launch_agents = PathBuf::from(home).join("Library/LaunchAgents");
+                 if !launch_agents.exists() {
+                     let _ = fs::create_dir_all(&launch_agents);
+                 }
+                 let plist_path = launch_agents.join("com.focustimer.rust.plist");
+                 
+                 if run {
+                     if let Ok(exe_path) = std::env::current_exe() {
+                         let exe_str = exe_path.to_str().unwrap_or("");
+                         let plist_content = format!(r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.focustimer.rust</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>{}</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+</dict>
+</plist>"#, exe_str);
+                         if let Err(e) = fs::write(plist_path, plist_content) {
+                             error!("Failed to write plist: {}", e);
+                         }
+                     }
+                 } else {
+                     if plist_path.exists() {
+                         let _ = fs::remove_file(plist_path);
+                     }
+                 }
+             }
         }
 
         self.save_config();

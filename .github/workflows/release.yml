@@ -12,10 +12,8 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
-
+  build-windows:
     runs-on: windows-latest
-
     steps:
     - uses: actions/checkout@v4
     
@@ -38,3 +36,60 @@ jobs:
       if: startsWith(github.ref, 'refs/tags/')
       with:
         files: focus-timer-rust-windows.zip
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      
+    - name: Build
+      run: cargo build --release
+      
+    - name: Run tests
+      run: cargo test
+
+    - name: Package
+      run: |
+        mkdir -p release_package
+        cp target/release/focus-timer-rust release_package/
+        cp -r assets release_package/
+        
+        # Create a simple .app bundle structure (optional but better for Mac users)
+        mkdir -p "Focus Timer.app/Contents/MacOS"
+        mkdir -p "Focus Timer.app/Contents/Resources"
+        cp target/release/focus-timer-rust "Focus Timer.app/Contents/MacOS/"
+        cp -r assets/* "Focus Timer.app/Contents/Resources/"
+        
+        # Create Info.plist
+        cat > "Focus Timer.app/Contents/Info.plist" << EOF
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0">
+        <dict>
+            <key>CFBundleExecutable</key>
+            <string>focus-timer-rust</string>
+            <key>CFBundleIdentifier</key>
+            <string>com.focustimer.rust</string>
+            <key>CFBundleName</key>
+            <string>Focus Timer</string>
+            <key>CFBundleVersion</key>
+            <string>1.0.0</string>
+            <key>CFBundlePackageType</key>
+            <string>APPL</string>
+            <key>NSHighResolutionCapable</key>
+            <true/>
+        </dict>
+        </plist>
+        EOF
+        
+        # Zip the .app bundle
+        zip -r focus-timer-rust-macos.zip "Focus Timer.app"
+
+    - name: Release
+      uses: softprops/action-gh-release@v1
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        files: focus-timer-rust-macos.zip
