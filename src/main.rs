@@ -212,33 +212,55 @@ fn app() -> Element {
                                      let title = title.to_string();
                                      let body = body.to_string();
 
-                                     tokio::task::spawn_blocking(move || {
-                                         #[cfg(target_os = "windows")]
-                                         {
-                                             let mut toast = Toast::new(Toast::POWERSHELL_APP_ID)
-                                                 .title(&title)
-                                                 .text1(&body);
+                                    tokio::task::spawn_blocking(move || {
+                                        #[cfg(target_os = "windows")]
+                                        {
+                                            use std::sync::{Arc, Mutex};
+                                            // Channel to signal when we can stop waiting (notification interaction or timeout)
+                                            let (tx_complete, rx_complete) = std::sync::mpsc::channel::<()>();
+                                            let tx_complete = Arc::new(Mutex::new(tx_complete));
 
-                                             if mode == NotificationMode::NotificationPersistent {
-                                                  toast = toast.scenario(Scenario::Alarm);
-                                                  toast = toast.add_button("Ok", "Ok");
-                                                  toast = toast.add_button(start_button_text, "start");
-                                             } else {
-                                                  toast = toast.duration(ToastDuration::Short);
-                                             }
+                                            let mut toast = Toast::new(Toast::POWERSHELL_APP_ID)
+                                                .title(&title)
+                                                .text1(&body);
 
-                                             let _ = toast
-                                                 .on_activated(move |action| {
-                                                      let should_start = if let Some(args) = action {
-                                                          args == "start"
-                                                      } else {
-                                                          false
-                                                      };
-                                                      let _ = tx_clone.send(should_start);
-                                                      Ok(())
-                                                 })
-                                                 .show();
-                                         }
+                                            if mode == NotificationMode::NotificationPersistent {
+                                                 toast = toast.scenario(Scenario::Alarm);
+                                                 toast = toast.add_button("Ok", "Ok");
+                                                 toast = toast.add_button(start_button_text, "start");
+                                            } else {
+                                                 toast = toast.duration(ToastDuration::Short);
+                                            }
+
+                                            let tx_clone_act = tx_clone.clone();
+                                            let tx_complete_act = tx_complete.clone();
+
+                                            toast = toast.on_activated(move |action| {
+                                                 let should_start = if let Some(args) = action {
+                                                     args == "start"
+                                                 } else {
+                                                     false
+                                                 };
+                                                 let _ = tx_clone_act.send(should_start);
+                                                 // Signal completion
+                                                 if let Ok(tx) = tx_complete_act.lock() {
+                                                     let _ = tx.send(());
+                                                 }
+                                                 Ok(())
+                                            });
+
+                                            // Attempt to handle dismissal if possible to avoid long waits, 
+                                            // but tauri-winrt-notification might not expose it easily in all versions.
+                                            // We rely on timeout as a fallback.
+
+                                            if let Err(e) = toast.show() {
+                                                 dioxus_logger::tracing::error!("Failed to show notification: {}", e);
+                                            } else if mode == NotificationMode::NotificationPersistent {
+                                                 // Keep thread alive to receive callback.
+                                                 // We wait up to 4 hours to avoid infinite thread leaks if dismissed manually without handler.
+                                                 let _ = rx_complete.recv_timeout(std::time::Duration::from_secs(3600 * 4));
+                                            }
+                                        }
 
                                          #[cfg(not(target_os = "windows"))]
                                          {

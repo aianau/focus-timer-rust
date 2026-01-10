@@ -1,13 +1,23 @@
 # Focus Timer (Rust)
 
+![Focus Timer Screenshot](docs/focus_timer_image.png)
+
 A modern, desktop-based focus timer application built with Rust and Dioxus. This application helps you manage your time using the Pomodoro technique, tracking your focus sessions and breaks with a clean, unobtrusive interface.
 
-## Features
+## Featuresw
 
-- **Focus & Break Timer**: Default 25-minute work sessions and 2-minute breaks (customizable).
+- **Focus & Break Timer**: Default 25-minute work sessions and 5-minute breaks (customizable). Includes overtime counting if you continue working past the timer.
 - **Visual Progress**: Circular progress indicator for easy time visualization.
-- **Task Management**: Built-in daily task list to keep track of your goals.
-- **Session History**: automatic tracking of daily focus and break duration.
+- **Smart Controls**: 
+  - **Start/Pause**: Toggle timer state.
+  - **Reset**: Quickly restart the current session.
+  - **Overtime**: Continues counting up after the timer reaches zero until you interact.
+- **Daily Statistics**: 
+  - **Focus Time of Today**: Total duration spent in focus mode.
+  - **Break Time Today**: Total duration spent on breaks.
+- **Task Management**: 
+  - **Today's Tasks**: Add, complete (toggle), and remove tasks directly from the sidebar.
+  - **Hide Completed**: Option to filter out finished tasks.
 - **System Tray Support**: Minimizes to the system tray to keep your taskbar clean while running in the background.
 - **Native Notifications**:
   - **Windows**: Interactive Toast notifications (Start next session directly from notification).
@@ -21,6 +31,11 @@ A modern, desktop-based focus timer application built with Rust and Dioxus. This
 - **UI Framework**: [Dioxus](https://dioxuslabs.com/) (HTML/CSS/Rust)
 - **Async Runtime**: Tokio
 - **Platform Integration**: `tray-icon`, `notify-rust`, `tauri-winrt-notification` (Windows), `winreg` (Windows Registry).
+
+## Setup
+Download the zip from https://github.com/aianau/focus-timer-rust/releases and unzip it anywhere you want.
+Execute focus-timer-rust.exe on Windows or focus-timer-rust on macos. 
+Enjoy.
 
 ## Building from Source
 
