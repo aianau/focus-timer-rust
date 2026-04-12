@@ -163,6 +163,7 @@ pub struct TimerState {
     pub hide_completed_tasks: bool,
     pub auto_delete_old_tasks: bool,
     pub run_at_startup: bool,
+    pub show_start_menu_icon: bool,
     pub window_width: u32,
     pub window_height: u32,
     pub overtime: Duration,
@@ -176,6 +177,7 @@ pub struct AppConfig {
     pub hide_completed_tasks: Option<bool>,
     pub auto_delete_old_tasks: Option<bool>,
     pub run_at_startup: Option<bool>,
+    pub show_start_menu_icon: Option<bool>,
     pub window_width: Option<u32>,
     pub window_height: Option<u32>,
 }
@@ -189,6 +191,7 @@ impl Default for AppConfig {
             hide_completed_tasks: Some(false),
             auto_delete_old_tasks: Some(false),
             run_at_startup: Some(false),
+            show_start_menu_icon: Some(false),
             window_width: Some(800),
             window_height: Some(600),
         }
@@ -224,7 +227,7 @@ impl AppConfig {
 impl TimerState {
     pub fn new(default_work_minutes: u64, default_pause_minutes: u64) -> Self {
         // Try to load config, otherwise use defaults
-        let (work_minutes, pause_minutes, notif_mode, hide_completed, auto_delete, run_startup, width, height) = if let Some(config) = AppConfig::load() {
+        let (work_minutes, pause_minutes, notif_mode, hide_completed, auto_delete, run_startup, start_menu, width, height) = if let Some(config) = AppConfig::load() {
             (
                 config.work_minutes, 
                 config.pause_minutes, 
@@ -232,11 +235,12 @@ impl TimerState {
                 config.hide_completed_tasks.unwrap_or(false),
                 config.auto_delete_old_tasks.unwrap_or(false),
                 config.run_at_startup.unwrap_or(false),
+                config.show_start_menu_icon.unwrap_or(false),
                 config.window_width.unwrap_or(800),
                 config.window_height.unwrap_or(600)
             )
         } else {
-            (default_work_minutes, default_pause_minutes, NotificationMode::NotificationPersistent, false, false, false, 800, 600)
+            (default_work_minutes, default_pause_minutes, NotificationMode::NotificationPersistent, false, false, false, false, 800, 600)
         };
 
         let work_duration = Duration::from_secs(work_minutes * 60);
@@ -253,6 +257,7 @@ impl TimerState {
             hide_completed_tasks: hide_completed,
             auto_delete_old_tasks: auto_delete,
             run_at_startup: run_startup,
+            show_start_menu_icon: start_menu,
             window_width: width,
             window_height: height,
             overtime: Duration::from_secs(0),
@@ -262,6 +267,7 @@ impl TimerState {
         #[cfg(target_os = "windows")]
         {
             state.run_at_startup = state.check_startup_registry();
+            state.show_start_menu_icon = state.check_start_menu_icon();
         }
         #[cfg(target_os = "macos")]
         {
@@ -283,6 +289,7 @@ impl TimerState {
             hide_completed_tasks: Some(self.hide_completed_tasks),
             auto_delete_old_tasks: Some(self.auto_delete_old_tasks),
             run_at_startup: Some(self.run_at_startup),
+            show_start_menu_icon: Some(self.show_start_menu_icon),
             window_width: Some(self.window_width),
             window_height: Some(self.window_height),
         };
@@ -392,6 +399,15 @@ impl TimerState {
         false
     }
     
+    #[cfg(target_os = "windows")]
+    fn check_start_menu_icon(&self) -> bool {
+        if let Ok(appdata) = std::env::var("APPDATA") {
+            let path = Path::new(&appdata).join("Microsoft").join("Windows").join("Start Menu").join("Programs").join("FocusTimerRust.lnk");
+            return path.exists();
+        }
+        false
+    }
+    
     #[cfg(target_os = "macos")]
     fn check_startup_macos(&self) -> bool {
          if let Ok(home) = std::env::var("HOME") {
@@ -472,6 +488,36 @@ impl TimerState {
              }
         }
 
+        self.save_config();
+    }
+
+    pub fn set_show_start_menu_icon(&mut self, show: bool) {
+        self.show_start_menu_icon = show;
+        
+        #[cfg(target_os = "windows")]
+        {
+            if let Ok(appdata) = std::env::var("APPDATA") {
+                let lnk_path = Path::new(&appdata).join("Microsoft").join("Windows").join("Start Menu").join("Programs").join("FocusTimerRust.lnk");
+                if show {
+                    if let Ok(exe_path) = std::env::current_exe() {
+                        let exe_str = exe_path.to_str().unwrap_or("");
+                        let lnk_str = lnk_path.to_str().unwrap_or("");
+                        // Use PowerShell to create the shortcut
+                        let ps_script = format!(
+                            "$s=(New-Object -COM WScript.Shell).CreateShortcut('{}');$s.TargetPath='{}';$s.Save()",
+                            lnk_str, exe_str
+                        );
+                        let _ = std::process::Command::new("powershell")
+                            .args(["-WindowStyle", "Hidden", "-NoProfile", "-Command", &ps_script])
+                            .output();
+                    }
+                } else {
+                    if lnk_path.exists() {
+                        let _ = std::fs::remove_file(lnk_path);
+                    }
+                }
+            }
+        }
         self.save_config();
     }
 
