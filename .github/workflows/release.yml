@@ -143,4 +143,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "v${{ needs.check-version.outputs.version }}" release-artifacts/* --title "Release v${{ needs.check-version.outputs.version }}"
+          FILES=$(find release-artifacts -type f)
+          gh release create "v${{ needs.check-version.outputs.version }}" $FILES --title "Release v${{ needs.check-version.outputs.version }}"
