@@ -138,8 +138,7 @@ jobs:
           merge-multiple: true
 
       - name: Release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: v${{ needs.check-version.outputs.version }}
-          name: Release v${{ needs.check-version.outputs.version }}
-          files: release-artifacts/*
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "v${{ needs.check-version.outputs.version }}" release-artifacts/* --title "Release v${{ needs.check-version.outputs.version }}"
