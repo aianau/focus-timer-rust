@@ -108,6 +108,18 @@ pub fn SettingsModal(on_close: EventHandler<()>, state: Signal<TimerState>) -> E
                     label { style: "margin: 0;", "Show Start Menu Icon" }
                 }
 
+                div { class: "input-group", style: "display: flex; align-items: center; gap: 10px;",
+                    input {
+                        r#type: "checkbox",
+                        style: "width: auto;",
+                        checked: s.read().check_updates_on_startup,
+                        onchange: move |evt| {
+                             s.write().set_check_updates_on_startup(evt.checked());
+                        }
+                    }
+                    label { style: "margin: 0;", "Enable check updates on app startup" }
+                }
+
                 div { class: "input-group",
                     button {
                         class: "btn",

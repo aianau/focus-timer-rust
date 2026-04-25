@@ -4,6 +4,7 @@ mod components;
 mod state;
 mod tray;
 mod events; // Add events module
+mod updater;
 
 use dioxus::prelude::*;
 use dioxus_logger::tracing::{info, Level};
@@ -24,25 +25,50 @@ use crate::state::{NotificationMode, TimerMode, TimerState, AppConfig};
 use crate::events::AppEvent; // Import AppEvent
 
 fn main() {
+    let args: Vec<String> = std::env::args().collect();
+    if args.iter().any(|arg| arg == "--update") {
+        updater::apply_update();
+        return;
+    }
+
     dioxus_logger::init(Level::INFO).expect("failed to init logger");
     info!("starting app");
 
     // Initialize tray icon (keep it alive)
     let _tray = tray::create_tray_icon();
 
-    let (width, height) = if let Some(config) = AppConfig::load() {
-        (config.window_width.unwrap_or(800) as f64, config.window_height.unwrap_or(600) as f64)
+    let (width, height, check_updates) = if let Some(config) = AppConfig::load() {
+        (
+            config.window_width.unwrap_or(800) as f64, 
+            config.window_height.unwrap_or(600) as f64,
+            config.check_updates_on_startup.unwrap_or(true)
+        )
     } else {
-        (800.0, 600.0)
+        (800.0, 600.0, true)
     };
+
+    if check_updates {
+        updater::check_and_prompt_update();
+    }
 
     // Load icon for window
     let (icon_rgba, icon_width, icon_height) = tray::load_icon_data(256, 256);
     let window_icon = dioxus::desktop::tao::window::Icon::from_rgba(icon_rgba, icon_width, icon_height)
         .expect("Failed to create window icon");
 
-    let config = dioxus::desktop::Config::new()
-        .with_custom_head(r#"<link rel="stylesheet" href="assets/style.css">"#.to_string())
+    // Determine assets path
+    let local_assets = std::env::current_dir().unwrap_or_default().join("assets");
+    let program_data = std::env::var("ProgramData").unwrap_or_else(|_| "C:\\ProgramData".to_string());
+    let program_data_assets = std::path::PathBuf::from(program_data).join("FocusTimerRust").join("assets");
+    
+    let (head, resource_dir) = if local_assets.join("style.css").exists() {
+        (r#"<link rel="stylesheet" href="assets/style.css">"#.to_string(), None)
+    } else {
+        (r#"<link rel="stylesheet" href="style.css">"#.to_string(), Some(program_data_assets))
+    };
+
+    let mut config = dioxus::desktop::Config::new()
+        .with_custom_head(head)
         .with_window(
             dioxus::desktop::WindowBuilder::new()
                 .with_title("Focus Timer")
@@ -51,6 +77,10 @@ fn main() {
                 .with_inner_size(dioxus::desktop::tao::dpi::LogicalSize::new(width, height))
                 .with_window_icon(Some(window_icon)),
         );
+
+    if let Some(dir) = resource_dir {
+        config = config.with_resource_directory(dir);
+    }
 
     LaunchBuilder::desktop().with_cfg(config).launch(app);
 }

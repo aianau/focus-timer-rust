@@ -12,9 +12,11 @@ anyhow = "1.0.100"
 chrono = { version = "0.4.42", features = ["serde"] }
 dioxus = { version = "0.5", features = ["desktop", "hooks"] }
 dioxus-logger = "0.5"
+directories = "6.0.0"
 muda = "0.17.1"
 notify-rust = "4.11.7"
 resvg = "0.45.1"
+self_update = { version = "0.44.0", features = ["archive-zip", "compression-zip-deflate"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
 tao = { version = "0.34.5", features = ["rwh_05"] }

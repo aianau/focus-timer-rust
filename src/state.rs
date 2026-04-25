@@ -6,6 +6,23 @@ use std::path::{PathBuf, Path};
 use chrono::{DateTime, Local};
 use dioxus_logger::tracing::{info, error};
 
+fn get_app_config_dir() -> PathBuf {
+    #[cfg(test)]
+    return PathBuf::from(".");
+    #[cfg(not(test))]
+    {
+        if let Some(proj_dirs) = directories::ProjectDirs::from("com", "focustimer", "rust") {
+            let dir = proj_dirs.config_dir().to_path_buf();
+            if !dir.exists() {
+                let _ = fs::create_dir_all(&dir);
+            }
+            dir
+        } else {
+            PathBuf::from(".")
+        }
+    }
+}
+
 #[cfg(target_os = "windows")]
 use winreg::enums::*;
 #[cfg(target_os = "windows")]
@@ -58,9 +75,9 @@ pub struct SessionHistory {
 impl SessionHistory {
     fn get_path() -> PathBuf {
         #[cfg(test)]
-        return PathBuf::from("test_focus_history.json");
+        return get_app_config_dir().join("test_focus_history.json");
         #[cfg(not(test))]
-        return PathBuf::from("focus_history.json");
+        return get_app_config_dir().join("focus_history.json");
     }
 
     pub fn load() -> Self {
@@ -166,6 +183,7 @@ pub struct TimerState {
     pub show_start_menu_icon: bool,
     pub window_width: u32,
     pub window_height: u32,
+    pub check_updates_on_startup: bool,
     pub overtime: Duration,
 }
 
@@ -180,6 +198,7 @@ pub struct AppConfig {
     pub show_start_menu_icon: Option<bool>,
     pub window_width: Option<u32>,
     pub window_height: Option<u32>,
+    pub check_updates_on_startup: Option<bool>,
 }
 
 impl Default for AppConfig {
@@ -194,6 +213,7 @@ impl Default for AppConfig {
             show_start_menu_icon: Some(false),
             window_width: Some(800),
             window_height: Some(600),
+            check_updates_on_startup: Some(true),
         }
     }
 }
@@ -201,9 +221,9 @@ impl Default for AppConfig {
 impl AppConfig {
     pub fn get_config_path() -> PathBuf {
         #[cfg(test)]
-        return PathBuf::from("test_focus_timer_config.json");
+        return get_app_config_dir().join("test_focus_timer_config.json");
         #[cfg(not(test))]
-        return PathBuf::from("focus_timer_config.json");
+        return get_app_config_dir().join("focus_timer_config.json");
     }
 
     pub fn load() -> Option<Self> {
@@ -227,7 +247,7 @@ impl AppConfig {
 impl TimerState {
     pub fn new(default_work_minutes: u64, default_pause_minutes: u64) -> Self {
         // Try to load config, otherwise use defaults
-        let (work_minutes, pause_minutes, notif_mode, hide_completed, auto_delete, run_startup, start_menu, width, height) = if let Some(config) = AppConfig::load() {
+        let (work_minutes, pause_minutes, notif_mode, hide_completed, auto_delete, run_startup, start_menu, width, height, check_updates) = if let Some(config) = AppConfig::load() {
             (
                 config.work_minutes, 
                 config.pause_minutes, 
@@ -237,10 +257,11 @@ impl TimerState {
                 config.run_at_startup.unwrap_or(false),
                 config.show_start_menu_icon.unwrap_or(false),
                 config.window_width.unwrap_or(800),
-                config.window_height.unwrap_or(600)
+                config.window_height.unwrap_or(600),
+                config.check_updates_on_startup.unwrap_or(true)
             )
         } else {
-            (default_work_minutes, default_pause_minutes, NotificationMode::NotificationPersistent, false, false, false, false, 800, 600)
+            (default_work_minutes, default_pause_minutes, NotificationMode::NotificationPersistent, false, false, false, false, 800, 600, true)
         };
 
         let work_duration = Duration::from_secs(work_minutes * 60);
@@ -260,6 +281,7 @@ impl TimerState {
             show_start_menu_icon: start_menu,
             window_width: width,
             window_height: height,
+            check_updates_on_startup: check_updates,
             overtime: Duration::from_secs(0),
         };
 
@@ -292,6 +314,7 @@ impl TimerState {
             show_start_menu_icon: Some(self.show_start_menu_icon),
             window_width: Some(self.window_width),
             window_height: Some(self.window_height),
+            check_updates_on_startup: Some(self.check_updates_on_startup),
         };
         config.save();
     }
@@ -387,6 +410,11 @@ impl TimerState {
         if auto_delete {
             self.history.check_auto_delete();
         }
+        self.save_config();
+    }
+
+    pub fn set_check_updates_on_startup(&mut self, check: bool) {
+        self.check_updates_on_startup = check;
         self.save_config();
     }
 
