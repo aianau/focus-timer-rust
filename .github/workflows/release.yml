@@ -59,12 +59,11 @@ jobs:
     - name: Build Installer
       run: iscc "/DMyAppVersion=${{ needs.check-version.outputs.version }}" installer.iss
 
-    - name: Release
-      uses: softprops/action-gh-release@v1
+    - name: Upload Windows Artifacts
+      uses: actions/upload-artifact@v4
       with:
-        tag_name: v${{ needs.check-version.outputs.version }}
-        name: Release v${{ needs.check-version.outputs.version }}
-        files: |
+        name: windows-artifacts
+        path: |
           focus-timer-rust-windows.zip
           Output/FocusTimerRust-Setup.exe
 
@@ -121,9 +120,26 @@ jobs:
         # Zip the .app bundle
         zip -r focus-timer-rust-macos.zip "Focus Timer.app"
 
-    - name: Release
-      uses: softprops/action-gh-release@v1
+    - name: Upload MacOS Artifacts
+      uses: actions/upload-artifact@v4
       with:
-        tag_name: v${{ needs.check-version.outputs.version }}
-        name: Release v${{ needs.check-version.outputs.version }}
-        files: focus-timer-rust-macos.zip
+        name: macos-artifacts
+        path: focus-timer-rust-macos.zip
+
+  publish-release:
+    needs: [check-version, build-windows, build-macos]
+    if: needs.check-version.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+          merge-multiple: true
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ needs.check-version.outputs.version }}
+          name: Release v${{ needs.check-version.outputs.version }}
+          files: release-artifacts/*
