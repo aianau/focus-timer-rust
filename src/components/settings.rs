@@ -131,7 +131,8 @@ pub fn SettingsModal(on_close: EventHandler<()>, state: Signal<TimerState>) -> E
                     }
                 }
 
-                div { style: "display: flex; justify-content: flex-end; margin-top: 20px;",
+                div { style: "display: flex; justify-content: space-between; align-items: center; margin-top: 20px;",
+                    span { style: "color: #888; font-size: 0.8rem;", "v{env!(\"CARGO_PKG_VERSION\")}" }
                     button {
                         class: "btn",
                         onclick: move |_| on_close.call(()),
