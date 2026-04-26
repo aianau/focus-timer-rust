@@ -8,10 +8,13 @@ use tauri_winrt_notification::{Duration as ToastDuration, Scenario, Toast};
 pub fn check_and_prompt_update() {
     std::thread::spawn(|| {
         info!("Checking for updates...");
+        let target_str = if cfg!(target_os = "windows") { "windows.zip" } else { "macos.zip" };
         let updater = match self_update::backends::github::Update::configure()
             .repo_owner("aianau")
             .repo_name("focus-timer-rust")
             .bin_name("focus-timer-rust.exe")
+            .target(target_str)
+            .no_confirm(true)
             .current_version(cargo_crate_version!())
             .build()
         {
@@ -86,10 +89,13 @@ fn prompt_user_for_update(new_version: &str) {
 
 pub fn apply_update() {
     info!("Applying update...");
+    let target_str = if cfg!(target_os = "windows") { "windows.zip" } else { "macos.zip" };
     match self_update::backends::github::Update::configure()
         .repo_owner("aianau")
         .repo_name("focus-timer-rust")
         .bin_name("focus-timer-rust.exe")
+        .target(target_str)
+        .no_confirm(true)
         .show_download_progress(true)
         .current_version(cargo_crate_version!())
         .build()
