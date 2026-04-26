@@ -25,6 +25,10 @@ use crate::state::{NotificationMode, TimerMode, TimerState, AppConfig};
 use crate::events::AppEvent; // Import AppEvent
 
 fn main() {
+    std::panic::set_hook(Box::new(|info| {
+        let msg = format!("Panic occurred: {:?}", info);
+        let _ = std::fs::write("C:\\ProgramData\\FocusTimerRust\\crash.log", msg);
+    }));
     let args: Vec<String> = std::env::args().collect();
     if args.iter().any(|arg| arg == "--update") {
         updater::apply_update();
@@ -57,17 +61,22 @@ fn main() {
         .expect("Failed to create window icon");
 
     // Determine assets path
-    let local_assets = std::env::current_dir().unwrap_or_default().join("assets");
-    let program_data = std::env::var("ProgramData").unwrap_or_else(|_| "C:\\ProgramData".to_string());
-    let program_data_assets = std::path::PathBuf::from(program_data).join("FocusTimerRust").join("assets");
-    
-    let (head, resource_dir) = if local_assets.join("style.css").exists() {
-        (r#"<link rel="stylesheet" href="assets/style.css">"#.to_string(), None)
-    } else {
-        (r#"<link rel="stylesheet" href="style.css">"#.to_string(), Some(program_data_assets))
-    };
+    // Embed CSS directly into the binary to avoid file resolution issues on installed versions
+    let style_content = include_str!("../assets/style.css");
+    let head = format!("<style>\n{}\n</style>", style_content);
 
-    let mut config = dioxus::desktop::Config::new()
+    let data_dir = directories::ProjectDirs::from("com", "focustimer", "rust")
+        .map(|d| {
+            let path = d.data_dir().to_path_buf();
+            if !path.exists() {
+                let _ = std::fs::create_dir_all(&path);
+            }
+            path
+        })
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
+        
+    let config = dioxus::desktop::Config::new()
+        .with_data_directory(data_dir)
         .with_custom_head(head)
         .with_window(
             dioxus::desktop::WindowBuilder::new()
@@ -78,9 +87,7 @@ fn main() {
                 .with_window_icon(Some(window_icon)),
         );
 
-    if let Some(dir) = resource_dir {
-        config = config.with_resource_directory(dir);
-    }
+
 
     LaunchBuilder::desktop().with_cfg(config).launch(app);
 }
