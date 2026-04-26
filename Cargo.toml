@@ -1,6 +1,6 @@
 [package]
 name = "focus-timer-rust"
-version = "0.1.5"
+version = "0.1.6"
 edition = "2021"
 
 [target.'cfg(target_os = "windows")'.dependencies]
