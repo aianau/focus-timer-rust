@@ -461,20 +461,47 @@ impl TimerState {
             if run {
                 if let Ok((key, _)) = hkcu.create_subkey(&path) {
                     if let Ok(exe_path) = std::env::current_exe() {
-                         if let Some(parent) = exe_path.parent() {
-                             let parent_str = parent.to_str().unwrap_or("");
-                             let exe_name = exe_path.file_name().unwrap_or_default().to_str().unwrap_or("");
-                             let cmd_val = format!("cmd /c start \"\" /d \"{}\" \"{}\"", parent_str, exe_name);
-                             info!("Registry command: {}", cmd_val);
-                             let _ = key.set_value("FocusTimerRust", &cmd_val);
-                         }
+                        let cmd_val = format!("\"{}\"", exe_path.to_str().unwrap_or(""));
+                        info!("Registry startup command: {}", cmd_val);
+                        let _ = key.set_value("FocusTimerRust", &cmd_val);
                     }
+                }
+
+                // Also write to StartupApproved\Run to mark it as enabled.
+                // Windows Task Manager stores a "disabled" flag here ({3,...}) that silently
+                // blocks Run key entries from launching, even when the value exists.
+                // We must explicitly set it to {2, 0, 0, 0, ...} = enabled.
+                let approved_path = Path::new("Software")
+                    .join("Microsoft")
+                    .join("Windows")
+                    .join("CurrentVersion")
+                    .join("Explorer")
+                    .join("StartupApproved")
+                    .join("Run");
+                if let Ok((approved_key, _)) = hkcu.create_subkey(&approved_path) {
+                    // 12-byte binary: first byte 2 = enabled, rest zeros
+                    let enabled_bytes: [u8; 12] = [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+                    let _ = approved_key.set_raw_value(
+                        "FocusTimerRust",
+                        &winreg::RegValue { bytes: enabled_bytes.to_vec(), vtype: winreg::enums::RegType::REG_BINARY },
+                    );
+                    info!("Set StartupApproved\\Run\\FocusTimerRust = enabled");
                 }
             } else {
                 if let Err(e) = hkcu.open_subkey_with_flags(&path, KEY_SET_VALUE)
                     .and_then(|key| key.delete_value("FocusTimerRust")) {
                     error!("{}", e);
                 }
+                // Clean up StartupApproved entry too
+                let approved_path = Path::new("Software")
+                    .join("Microsoft")
+                    .join("Windows")
+                    .join("CurrentVersion")
+                    .join("Explorer")
+                    .join("StartupApproved")
+                    .join("Run");
+                let _ = hkcu.open_subkey_with_flags(&approved_path, KEY_SET_VALUE)
+                    .and_then(|key| key.delete_value("FocusTimerRust"));
             }
         }
 
